@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth } from "./auth";
+import { setupAuth, hashPassword } from "./auth";
 import { insertCompanySchema, insertTimesheetSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -12,7 +12,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   if (!adminUser) {
     await storage.createUser({
       username: "admin",
-      password: "admin",
+      password: await hashPassword("admin"),
       role: "admin",
       companyId: null,
     });
