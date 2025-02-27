@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 export default function NavBar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
 
   return (
     <nav className="bg-background border-b">
@@ -21,17 +21,26 @@ export default function NavBar() {
             <Link href="/">
               <span className="text-sm cursor-pointer hover:text-primary">Home</span>
             </Link>
-            <Link href="#services">
-              <span className="text-sm cursor-pointer hover:text-primary">Services</span>
-            </Link>
-            <Link href="#about">
-              <span className="text-sm cursor-pointer hover:text-primary">About</span>
-            </Link>
-            {user ? (
-              <Link href="/dashboard">
-                <Button>Dashboard</Button>
-              </Link>
-            ) : (
+            {user && (
+              <>
+                <Link href="/dashboard">
+                  <span className="text-sm cursor-pointer hover:text-primary">Dashboard</span>
+                </Link>
+                {user.role === "candidate" && (
+                  <Link href="/timesheet">
+                    <span className="text-sm cursor-pointer hover:text-primary">Timesheets</span>
+                  </Link>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => logoutMutation.mutate()}
+                  disabled={logoutMutation.isPending}
+                >
+                  {logoutMutation.isPending ? "Logging out..." : "Logout"}
+                </Button>
+              </>
+            )}
+            {!user && (
               <Link href="/auth">
                 <Button>Sign In</Button>
               </Link>
@@ -61,23 +70,30 @@ export default function NavBar() {
                 Home
               </span>
             </Link>
-            <Link href="#services">
-              <span className="block px-3 py-2 text-base hover:bg-muted rounded-md">
-                Services
-              </span>
-            </Link>
-            <Link href="#about">
-              <span className="block px-3 py-2 text-base hover:bg-muted rounded-md">
-                About
-              </span>
-            </Link>
-            {user ? (
-              <Link href="/dashboard">
-                <span className="block px-3 py-2 text-base hover:bg-muted rounded-md">
-                  Dashboard
-                </span>
-              </Link>
-            ) : (
+            {user && (
+              <>
+                <Link href="/dashboard">
+                  <span className="block px-3 py-2 text-base hover:bg-muted rounded-md">
+                    Dashboard
+                  </span>
+                </Link>
+                {user.role === "candidate" && (
+                  <Link href="/timesheet">
+                    <span className="block px-3 py-2 text-base hover:bg-muted rounded-md">
+                      Timesheets
+                    </span>
+                  </Link>
+                )}
+                <button
+                  className="block w-full text-left px-3 py-2 text-base hover:bg-muted rounded-md"
+                  onClick={() => logoutMutation.mutate()}
+                  disabled={logoutMutation.isPending}
+                >
+                  {logoutMutation.isPending ? "Logging out..." : "Logout"}
+                </button>
+              </>
+            )}
+            {!user && (
               <Link href="/auth">
                 <span className="block px-3 py-2 text-base hover:bg-muted rounded-md">
                   Sign In

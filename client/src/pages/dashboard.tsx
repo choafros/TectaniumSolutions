@@ -47,6 +47,7 @@ export default function Dashboard() {
   }
 
   const pendingTimesheets = timesheets?.filter(t => t.status === "pending") || [];
+  const pendingDocuments = documents?.filter(d => !d.approved) || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -139,6 +140,12 @@ export default function Dashboard() {
                         {pendingTimesheets.length}
                       </span>
                     </div>
+                    <div className="flex items-center justify-between">
+                      <p>Documents</p>
+                      <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                        {pendingDocuments.length}
+                      </span>
+                    </div>
                     <Link href="/timesheet">
                       <Button variant="outline" className="w-full mt-4">View All</Button>
                     </Link>
@@ -179,6 +186,42 @@ export default function Dashboard() {
                             <Link href="/timesheet">
                               <Button variant="outline" size="sm">Review</Button>
                             </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              <Card className="lg:col-span-3">
+                <CardHeader>
+                  <CardTitle>Recent Document Uploads</CardTitle>
+                  <CardDescription>Latest document submissions from candidates</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Document</TableHead>
+                        <TableHead>Uploaded By</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {documents?.slice(0, 5).map((doc) => (
+                        <TableRow key={doc.id}>
+                          <TableCell>{doc.name}</TableCell>
+                          <TableCell>Employee #{doc.userId}</TableCell>
+                          <TableCell>
+                            {format(new Date(doc.uploadedAt), "MMM d, yyyy")}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm">View</Button>
+                              <Button variant="outline" size="sm">Approve</Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
