@@ -9,6 +9,7 @@ import HomePage from "@/pages/home-page";
 import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
 import Timesheet from "@/pages/timesheet";
+import Documents from "@/pages/documents";
 
 function Router() {
   return (
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
       <ProtectedRoute path="/timesheet" component={Timesheet} />
+      <ProtectedRoute path="/documents" component={Documents} />
       <Route component={NotFound} />
     </Switch>
   );

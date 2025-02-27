@@ -66,10 +66,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/documents", async (req, res) => {
     try {
       if (!req.user) return res.sendStatus(401);
-      const docs = await storage.getDocuments(req.user.id);
-      res.json(docs);
+      if (req.user.role === "admin") {
+        const docs = await storage.listAllDocuments();
+        res.json(docs);
+      } else {
+        const docs = await storage.getDocuments(req.user.id);
+        res.json(docs);
+      }
     } catch (error) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/documents/:id", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+      const doc = await storage.updateDocument(parseInt(req.params.id), req.body);
+      res.json(doc);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
     }
   });
 

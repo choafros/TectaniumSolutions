@@ -27,9 +27,14 @@ export default function NavBar() {
                   <span className="text-sm cursor-pointer hover:text-primary">Dashboard</span>
                 </Link>
                 {user.role === "candidate" && (
-                  <Link href="/timesheet">
-                    <span className="text-sm cursor-pointer hover:text-primary">Timesheets</span>
-                  </Link>
+                  <>
+                    <Link href="/timesheet">
+                      <span className="text-sm cursor-pointer hover:text-primary">Timesheets</span>
+                    </Link>
+                    <Link href="/documents">
+                      <span className="text-sm cursor-pointer hover:text-primary">Documents</span>
+                    </Link>
+                  </>
                 )}
                 <Button
                   variant="outline"
@@ -78,11 +83,18 @@ export default function NavBar() {
                   </span>
                 </Link>
                 {user.role === "candidate" && (
-                  <Link href="/timesheet">
-                    <span className="block px-3 py-2 text-base hover:bg-muted rounded-md">
-                      Timesheets
-                    </span>
-                  </Link>
+                  <>
+                    <Link href="/timesheet">
+                      <span className="block px-3 py-2 text-base hover:bg-muted rounded-md">
+                        Timesheets
+                      </span>
+                    </Link>
+                    <Link href="/documents">
+                      <span className="block px-3 py-2 text-base hover:bg-muted rounded-md">
+                        Documents
+                      </span>
+                    </Link>
+                  </>
                 )}
                 <button
                   className="block w-full text-left px-3 py-2 text-base hover:bg-muted rounded-md"

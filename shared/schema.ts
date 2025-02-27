@@ -14,6 +14,10 @@ export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  logo: text("logo"),
+  website: text("website"),
+  industry: text("industry"),
+  contactEmail: text("contact_email"),
   approved: boolean("approved").default(false),
 });
 
@@ -23,6 +27,7 @@ export const documents = pgTable("documents", {
   name: text("name").notNull(),
   path: text("path").notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow(),
+  approved: boolean("approved").default(false),
 });
 
 export const timesheets = pgTable("timesheets", {

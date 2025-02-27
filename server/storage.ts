@@ -8,21 +8,23 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  
+
   getCompany(id: number): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: number, company: Partial<Company>): Promise<Company>;
   listCompanies(): Promise<Company[]>;
-  
+
   createDocument(doc: InsertDocument): Promise<Document>;
   getDocuments(userId: number): Promise<Document[]>;
-  
+  updateDocument(id: number, doc: Partial<Document>): Promise<Document>;
+  listAllDocuments(): Promise<Document[]>;
+
   createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet>;
   getTimesheet(id: number): Promise<Timesheet | undefined>;
   getUserTimesheets(userId: number): Promise<Timesheet[]>;
   updateTimesheet(id: number, timesheet: Partial<Timesheet>): Promise<Timesheet>;
   listTimesheets(): Promise<Timesheet[]>;
-  
+
   sessionStore: session.Store;
 }
 
@@ -87,7 +89,7 @@ export class MemStorage implements IStorage {
 
   async createDocument(doc: InsertDocument): Promise<Document> {
     const id = this.currentId++;
-    const document: Document = { ...doc, id };
+    const document: Document = { ...doc, id, approved: false };
     this.documents.set(id, document);
     return document;
   }
@@ -98,9 +100,25 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async updateDocument(id: number, doc: Partial<Document>): Promise<Document> {
+    const existing = this.documents.get(id);
+    if (!existing) throw new Error("Document not found");
+    const updated = { ...existing, ...doc };
+    this.documents.set(id, updated);
+    return updated;
+  }
+
+  async listAllDocuments(): Promise<Document[]> {
+    return Array.from(this.documents.values());
+  }
+
   async createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet> {
     const id = this.currentId++;
-    const newTimesheet: Timesheet = { ...timesheet, id };
+    const newTimesheet: Timesheet = { 
+      ...timesheet, 
+      id,
+      status: "pending"
+    };
     this.timesheets.set(id, newTimesheet);
     return newTimesheet;
   }
