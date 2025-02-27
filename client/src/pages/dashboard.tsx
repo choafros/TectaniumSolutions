@@ -10,8 +10,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import NavBar from "@/components/nav-bar";
-import { Loader2, Calendar, FileText, Building2, Users } from "lucide-react";
+import { Loader2, Calendar, FileText, Building2, Users, Bell } from "lucide-react";
 import type { Company, Document, Timesheet } from "@shared/schema";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { format } from "date-fns";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -37,10 +46,12 @@ export default function Dashboard() {
     );
   }
 
+  const pendingTimesheets = timesheets?.filter(t => t.status === "pending") || [];
+
   return (
     <div className="min-h-screen bg-background">
       <NavBar />
-      
+
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Welcome back, {user?.username}</h1>
@@ -115,21 +126,64 @@ export default function Dashboard() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Pending Timesheets
+                    <Bell className="h-5 w-5" />
+                    Pending Approvals
                   </CardTitle>
-                  <CardDescription>Awaiting approval</CardDescription>
+                  <CardDescription>Items needing your attention</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <p className="text-2xl font-bold">
-                      {timesheets?.filter((t) => t.status === "pending").length || 0}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Need review</p>
+                    <div className="flex items-center justify-between">
+                      <p>Timesheets</p>
+                      <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                        {pendingTimesheets.length}
+                      </span>
+                    </div>
                     <Link href="/timesheet">
-                      <Button className="w-full mt-4">Review Timesheets</Button>
+                      <Button variant="outline" className="w-full mt-4">View All</Button>
                     </Link>
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card className="lg:col-span-3">
+                <CardHeader>
+                  <CardTitle>Recent Timesheet Submissions</CardTitle>
+                  <CardDescription>Latest timesheet entries from all users</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Hours</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingTimesheets.slice(0, 5).map((timesheet) => (
+                        <TableRow key={timesheet.id}>
+                          <TableCell>
+                            {format(new Date(timesheet.weekStarting), "MMM d, yyyy")}
+                          </TableCell>
+                          <TableCell>Employee #{timesheet.userId}</TableCell>
+                          <TableCell>{timesheet.hours}</TableCell>
+                          <TableCell>
+                            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                              Pending
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Link href="/timesheet">
+                              <Button variant="outline" size="sm">Review</Button>
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             </>
