@@ -1,4 +1,6 @@
 import { User, Company, Document, Timesheet, InsertUser, InsertCompany, InsertDocument, InsertTimesheet } from "@shared/schema";
+import { db, users, companies, documents, timesheets } from "./db";
+import { eq } from "drizzle-orm";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 
@@ -30,134 +32,114 @@ export interface IStorage {
   updateUser(id: number, user: Partial<User>): Promise<User>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private companies: Map<number, Company>;
-  private documents: Map<number, Document>;
-  private timesheets: Map<number, Timesheet>;
-  private currentId: number;
+export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.companies = new Map();
-    this.documents = new Map();
-    this.timesheets = new Map();
-    this.currentId = 1;
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
     });
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  async listUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async updateUser(id: number, update: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set(update)
+      .where(eq(users.id, id))
+      .returning();
     return user;
   }
 
   async getCompany(id: number): Promise<Company | undefined> {
-    return this.companies.get(id);
+    const [company] = await db.select().from(companies).where(eq(companies.id, id));
+    return company;
   }
 
   async createCompany(company: InsertCompany): Promise<Company> {
-    const id = this.currentId++;
-    const newCompany: Company = { ...company, id };
-    this.companies.set(id, newCompany);
+    const [newCompany] = await db.insert(companies).values(company).returning();
     return newCompany;
   }
 
   async updateCompany(id: number, company: Partial<Company>): Promise<Company> {
-    const existing = await this.getCompany(id);
-    if (!existing) throw new Error("Company not found");
-    const updated = { ...existing, ...company };
-    this.companies.set(id, updated);
-    return updated;
+    const [updatedCompany] = await db
+      .update(companies)
+      .set(company)
+      .where(eq(companies.id, id))
+      .returning();
+    return updatedCompany;
   }
 
   async listCompanies(): Promise<Company[]> {
-    return Array.from(this.companies.values());
+    return await db.select().from(companies);
   }
 
   async createDocument(doc: InsertDocument): Promise<Document> {
-    const id = this.currentId++;
-    const document: Document = { ...doc, id, approved: false };
-    this.documents.set(id, document);
-    return document;
+    const [newDoc] = await db.insert(documents).values(doc).returning();
+    return newDoc;
   }
 
   async getDocuments(userId: number): Promise<Document[]> {
-    return Array.from(this.documents.values()).filter(
-      (doc) => doc.userId === userId,
-    );
+    return await db.select().from(documents).where(eq(documents.userId, userId));
   }
 
   async updateDocument(id: number, doc: Partial<Document>): Promise<Document> {
-    const existing = this.documents.get(id);
-    if (!existing) throw new Error("Document not found");
-    const updated = { ...existing, ...doc };
-    this.documents.set(id, updated);
-    return updated;
+    const [updatedDoc] = await db
+      .update(documents)
+      .set(doc)
+      .where(eq(documents.id, id))
+      .returning();
+    return updatedDoc;
   }
 
   async listAllDocuments(): Promise<Document[]> {
-    return Array.from(this.documents.values());
+    return await db.select().from(documents);
   }
 
   async createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet> {
-    const id = this.currentId++;
-    const newTimesheet: Timesheet = { 
-      ...timesheet, 
-      id,
-      status: "pending"
-    };
-    this.timesheets.set(id, newTimesheet);
+    const [newTimesheet] = await db.insert(timesheets).values(timesheet).returning();
     return newTimesheet;
   }
 
   async getTimesheet(id: number): Promise<Timesheet | undefined> {
-    return this.timesheets.get(id);
+    const [timesheet] = await db.select().from(timesheets).where(eq(timesheets.id, id));
+    return timesheet;
   }
 
   async getUserTimesheets(userId: number): Promise<Timesheet[]> {
-    return Array.from(this.timesheets.values()).filter(
-      (ts) => ts.userId === userId,
-    );
+    return await db.select().from(timesheets).where(eq(timesheets.userId, userId));
   }
 
   async updateTimesheet(id: number, timesheet: Partial<Timesheet>): Promise<Timesheet> {
-    const existing = await this.getTimesheet(id);
-    if (!existing) throw new Error("Timesheet not found");
-    const updated = { ...existing, ...timesheet };
-    this.timesheets.set(id, updated);
-    return updated;
+    const [updatedTimesheet] = await db
+      .update(timesheets)
+      .set(timesheet)
+      .where(eq(timesheets.id, id))
+      .returning();
+    return updatedTimesheet;
   }
 
   async listTimesheets(): Promise<Timesheet[]> {
-    return Array.from(this.timesheets.values());
-  }
-
-  async listUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
-  }
-
-  async updateUser(id: number, update: Partial<User>): Promise<User> {
-    const existing = await this.getUser(id);
-    if (!existing) throw new Error("User not found");
-    const updated = { ...existing, ...update };
-    this.users.set(id, updated);
-    return updated;
+    return await db.select().from(timesheets);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

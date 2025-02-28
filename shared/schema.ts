@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -39,6 +40,34 @@ export const timesheets = pgTable("timesheets", {
   status: text("status", { enum: ["pending", "approved", "rejected"] }).default("pending"),
   notes: text("notes"),
 });
+
+// Define relations
+export const userRelations = relations(users, ({ many, one }) => ({
+  documents: many(documents),
+  timesheets: many(timesheets),
+  company: one(companies, {
+    fields: [users.companyId],
+    references: [companies.id],
+  }),
+}));
+
+export const companyRelations = relations(companies, ({ many }) => ({
+  users: many(users),
+}));
+
+export const documentRelations = relations(documents, ({ one }) => ({
+  user: one(users, {
+    fields: [documents.userId],
+    references: [users.id],
+  }),
+}));
+
+export const timesheetRelations = relations(timesheets, ({ one }) => ({
+  user: one(users, {
+    fields: [timesheets.userId],
+    references: [users.id],
+  }),
+}));
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,

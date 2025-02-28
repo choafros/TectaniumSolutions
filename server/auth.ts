@@ -46,6 +46,8 @@ export function setupAuth(app: Express) {
       const user = await storage.getUserByUsername(username);
       if (!user || !(await comparePasswords(password, user.password))) {
         return done(null, false);
+      } else if (!user.active) {
+        return done(new Error("Your account is inactive. Please contact an administrator."));
       } else {
         return done(null, user);
       }

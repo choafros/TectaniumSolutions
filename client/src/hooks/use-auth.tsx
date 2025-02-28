@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext } from "react";
+import React, { createContext, ReactNode, useContext, useEffect } from "react";
 import {
   useQuery,
   useMutation,
@@ -31,10 +31,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
+  // Show message for inactive users
+  useEffect(() => {
+    if (user && !user.active) {
+      toast({
+        title: "Account Inactive",
+        description: "Your account is currently inactive. Please contact an administrator.",
+        variant: "destructive",
+      });
+    }
+  }, [user, toast]);
+
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
       const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      const user = await res.json();
+      if (!user.active) {
+        throw new Error("Your account is inactive. Please contact an administrator.");
+      }
+      return user;
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
