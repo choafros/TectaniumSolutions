@@ -141,6 +141,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add these routes after the existing routes
+  app.get("/api/users", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+      const users = await storage.listUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+      const user = await storage.updateUser(parseInt(req.params.id), req.body);
+      res.json(user);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

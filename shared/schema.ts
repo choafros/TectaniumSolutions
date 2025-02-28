@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: text("role", { enum: ["admin", "client", "candidate"] }).notNull(),
   companyId: integer("company_id").references(() => companies.id),
+  active: boolean("active").default(true),
 });
 
 export const companies = pgTable("companies", {

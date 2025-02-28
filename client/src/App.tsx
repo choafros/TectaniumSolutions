@@ -10,6 +10,7 @@ import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
 import Timesheet from "@/pages/timesheet";
 import Documents from "@/pages/documents";
+import Users from "@/pages/users";
 
 function Router() {
   return (
@@ -19,6 +20,7 @@ function Router() {
       <ProtectedRoute path="/dashboard" component={Dashboard} />
       <ProtectedRoute path="/timesheet" component={Timesheet} />
       <ProtectedRoute path="/documents" component={Documents} />
+      <ProtectedRoute path="/users" component={Users} />
       <Route component={NotFound} />
     </Switch>
   );

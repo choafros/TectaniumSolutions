@@ -26,6 +26,8 @@ export interface IStorage {
   listTimesheets(): Promise<Timesheet[]>;
 
   sessionStore: session.Store;
+  listUsers(): Promise<User[]>;
+  updateUser(id: number, user: Partial<User>): Promise<User>;
 }
 
 export class MemStorage implements IStorage {
@@ -143,6 +145,18 @@ export class MemStorage implements IStorage {
 
   async listTimesheets(): Promise<Timesheet[]> {
     return Array.from(this.timesheets.values());
+  }
+
+  async listUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
+  async updateUser(id: number, update: Partial<User>): Promise<User> {
+    const existing = await this.getUser(id);
+    if (!existing) throw new Error("User not found");
+    const updated = { ...existing, ...update };
+    this.users.set(id, updated);
+    return updated;
   }
 }
 
