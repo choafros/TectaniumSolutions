@@ -14,7 +14,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import type { User } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 
 export default function UsersPage() {
@@ -101,7 +100,7 @@ export default function UsersPage() {
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={user.active ? "success" : "destructive"}
+                    variant={user.active ? "default" : "destructive"}
                   >
                     {user.active ? "Active" : "Inactive"}
                   </Badge>
