@@ -16,7 +16,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       password: await hashPassword("admin"),
       role: "admin",
       companyId: null,
-      active: true,
     });
   }
 
@@ -24,6 +23,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents", async (req, res) => {
     try {
       if (!req.user) return res.sendStatus(401);
+
+      // Create document for the current user only
       const doc = await storage.createDocument({
         userId: req.user.id,
         name: req.body.name,
@@ -64,28 +65,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/documents/:id", async (req, res) => {
-    try {
-      if (!req.user) return res.sendStatus(401);
-
-      // Get the document to check ownership
-      const doc = await storage.getDocuments(req.user.id);
-      if (!doc) {
-        return res.status(404).json({ message: "Document not found" });
-      }
-
-      // Only admin or document owner can update
-      if (req.user.role !== "admin" && doc[0].userId !== req.user.id) {
-        return res.status(403).json({ message: "Unauthorized to modify this document" });
-      }
-
-      const updatedDoc = await storage.updateDocument(parseInt(req.params.id), req.body);
-      res.json(updatedDoc);
-    } catch (error: any) {
-      res.status(400).json({ message: error.message });
-    }
-  });
-
   // Timesheets
   app.post("/api/timesheets", async (req, res) => {
     try {
@@ -96,10 +75,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error("Invalid date format");
       }
 
-      // Check if timesheet already exists for this week for THIS user only
+      // Check if timesheet exists for this specific user and week
       const userTimesheets = await storage.getUserTimesheets(req.user.id);
-      const hasExisting = userTimesheets.some(
-        t => t.weekStarting.toISOString().split('T')[0] === weekStarting.toISOString().split('T')[0]
+      const hasExisting = userTimesheets.some(t => 
+        new Date(t.weekStarting).toISOString().split('T')[0] === weekStarting.toISOString().split('T')[0]
       );
 
       if (hasExisting) {
@@ -125,12 +104,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (req.user.role === "admin") {
         // Admin sees all timesheets with usernames
-        const allTimesheets = await storage.listAllTimesheets();
-        res.json(allTimesheets);
+        const timesheets = await storage.listAllTimesheets();
+        res.json(timesheets);
       } else {
-        // Regular users only see their own timesheets
-        const userTimesheets = await storage.getUserTimesheets(req.user.id);
-        res.json(userTimesheets);
+        // Users only see their own timesheets
+        const timesheets = await storage.getUserTimesheets(req.user.id);
+        res.json(timesheets);
       }
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -190,16 +169,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.deleteUser(userId);
       res.sendStatus(200);
-    } catch (error: any) {
-      res.status(400).json({ message: error.message });
-    }
-  });
-
-  app.patch("/api/users/:id", async (req, res) => {
-    try {
-      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
-      const user = await storage.updateUser(parseInt(req.params.id), req.body);
-      res.json(user);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

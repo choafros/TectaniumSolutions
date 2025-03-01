@@ -42,7 +42,7 @@ export const timesheets = pgTable("timesheets", {
   notes: text("notes"),
 });
 
-// Define relations with proper cascade
+// Relations
 export const userRelations = relations(users, ({ many }) => ({
   documents: many(documents),
   timesheets: many(timesheets),
@@ -63,13 +63,7 @@ export const timesheetRelations = relations(timesheets, ({ one }) => ({
 }));
 
 // Create insert schemas
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  role: true,
-  companyId: true,
-});
-
+export const insertUserSchema = createInsertSchema(users);
 export const insertCompanySchema = createInsertSchema(companies);
 export const insertDocumentSchema = createInsertSchema(documents);
 export const insertTimesheetSchema = createInsertSchema(timesheets);
