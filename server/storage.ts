@@ -73,9 +73,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: number): Promise<void> {
-    // First delete all related timesheets and documents
-    await db.delete(timesheets).where(eq(timesheets.userId, id));
-    await db.delete(documents).where(eq(documents.userId, id));
+    // Cascading delete will handle related records
     await db.delete(users).where(eq(users.id, id));
   }
 
@@ -108,7 +106,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDocuments(userId: number): Promise<Document[]> {
-    return await db.select().from(documents).where(eq(documents.userId, userId));
+    return await db
+      .select()
+      .from(documents)
+      .where(eq(documents.userId, userId));
   }
 
   async updateDocument(id: number, doc: Partial<Document>): Promise<Document> {
@@ -125,7 +126,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async listAllDocuments(): Promise<(Document & { username: string })[]> {
-    return await db
+    const docs = await db
       .select({
         id: documents.id,
         userId: documents.userId,
@@ -137,6 +138,11 @@ export class DatabaseStorage implements IStorage {
       })
       .from(documents)
       .leftJoin(users, eq(documents.userId, users.id));
+
+    return docs.map(doc => ({
+      ...doc,
+      username: doc.username || 'Unknown User'
+    }));
   }
 
   async createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet> {
@@ -150,7 +156,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserTimesheets(userId: number): Promise<Timesheet[]> {
-    return await db.select().from(timesheets).where(eq(timesheets.userId, userId));
+    return await db
+      .select()
+      .from(timesheets)
+      .where(eq(timesheets.userId, userId));
   }
 
   async updateTimesheet(id: number, timesheet: Partial<Timesheet>): Promise<Timesheet> {
@@ -167,7 +176,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async listAllTimesheets(): Promise<(Timesheet & { username: string })[]> {
-    return await db
+    const sheets = await db
       .select({
         id: timesheets.id,
         userId: timesheets.userId,
@@ -179,6 +188,11 @@ export class DatabaseStorage implements IStorage {
       })
       .from(timesheets)
       .leftJoin(users, eq(timesheets.userId, users.id));
+
+    return sheets.map(sheet => ({
+      ...sheet,
+      username: sheet.username || 'Unknown User'
+    }));
   }
 }
 

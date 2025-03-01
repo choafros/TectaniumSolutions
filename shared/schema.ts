@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+// Base tables
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -25,7 +26,7 @@ export const companies = pgTable("companies", {
 
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   path: text("path").notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow(),
@@ -34,25 +35,17 @@ export const documents = pgTable("documents", {
 
 export const timesheets = pgTable("timesheets", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   weekStarting: timestamp("week_starting").notNull(),
   hours: integer("hours").notNull(),
   status: text("status", { enum: ["pending", "approved", "rejected"] }).default("pending"),
   notes: text("notes"),
 });
 
-// Define relations
-export const userRelations = relations(users, ({ many, one }) => ({
+// Define relations with proper cascade
+export const userRelations = relations(users, ({ many }) => ({
   documents: many(documents),
   timesheets: many(timesheets),
-  company: one(companies, {
-    fields: [users.companyId],
-    references: [companies.id],
-  }),
-}));
-
-export const companyRelations = relations(companies, ({ many }) => ({
-  users: many(users),
 }));
 
 export const documentRelations = relations(documents, ({ one }) => ({

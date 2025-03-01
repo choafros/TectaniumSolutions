@@ -42,25 +42,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (req.user.role === "admin") {
         // Admin sees all documents with usernames
-        const docs = await db
-          .select({
-            id: documents.id,
-            userId: documents.userId,
-            name: documents.name,
-            path: documents.path,
-            uploadedAt: documents.uploadedAt,
-            approved: documents.approved,
-            username: users.username,
-          })
-          .from(documents)
-          .leftJoin(users, eq(documents.userId, users.id));
+        const docs = await storage.listAllDocuments();
         res.json(docs);
       } else {
         // Users only see their own documents
-        const docs = await db
-          .select()
-          .from(documents)
-          .where(eq(documents.userId, req.user.id));
+        const docs = await storage.getDocuments(req.user.id);
         res.json(docs);
       }
     } catch (error: any) {
@@ -80,9 +66,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/documents/:id", async (req, res) => {
     try {
-      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
-      const doc = await storage.updateDocument(parseInt(req.params.id), req.body);
-      res.json(doc);
+      if (!req.user) return res.sendStatus(401);
+
+      // Get the document to check ownership
+      const doc = await storage.getDocuments(req.user.id);
+      if (!doc) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+
+      // Only admin or document owner can update
+      if (req.user.role !== "admin" && doc[0].userId !== req.user.id) {
+        return res.status(403).json({ message: "Unauthorized to modify this document" });
+      }
+
+      const updatedDoc = await storage.updateDocument(parseInt(req.params.id), req.body);
+      res.json(updatedDoc);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
@@ -98,18 +96,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error("Invalid date format");
       }
 
-      // Check if timesheet already exists for this week and THIS user
-      const existingTimesheet = await db
-        .select()
-        .from(timesheets)
-        .where(
-          and(
-            eq(timesheets.userId, req.user.id),
-            eq(timesheets.weekStarting, weekStarting)
-          )
-        );
+      // Check if timesheet already exists for this week for THIS user only
+      const userTimesheets = await storage.getUserTimesheets(req.user.id);
+      const hasExisting = userTimesheets.some(
+        t => t.weekStarting.toISOString().split('T')[0] === weekStarting.toISOString().split('T')[0]
+      );
 
-      if (existingTimesheet.length > 0) {
+      if (hasExisting) {
         throw new Error("You have already submitted a timesheet for this week");
       }
 
@@ -132,25 +125,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (req.user.role === "admin") {
         // Admin sees all timesheets with usernames
-        const allTimesheets = await db
-          .select({
-            id: timesheets.id,
-            userId: timesheets.userId,
-            weekStarting: timesheets.weekStarting,
-            hours: timesheets.hours,
-            status: timesheets.status,
-            notes: timesheets.notes,
-            username: users.username,
-          })
-          .from(timesheets)
-          .leftJoin(users, eq(timesheets.userId, users.id));
+        const allTimesheets = await storage.listAllTimesheets();
         res.json(allTimesheets);
       } else {
         // Regular users only see their own timesheets
-        const userTimesheets = await db
-          .select()
-          .from(timesheets)
-          .where(eq(timesheets.userId, req.user.id));
+        const userTimesheets = await storage.getUserTimesheets(req.user.id);
         res.json(userTimesheets);
       }
     } catch (error: any) {
@@ -172,16 +151,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.user) return res.sendStatus(401);
 
-      const [timesheet] = await db
-        .select()
-        .from(timesheets)
-        .where(eq(timesheets.id, parseInt(req.params.id)));
-
+      const timesheet = await storage.getTimesheet(parseInt(req.params.id));
       if (!timesheet) {
         return res.status(404).json({ message: "Timesheet not found" });
       }
 
-      // Only admin can update any timesheet, regular users can only update their own
+      // Only admin or timesheet owner can update
       if (req.user.role !== "admin" && timesheet.userId !== req.user.id) {
         return res.status(403).json({ message: "You can only modify your own timesheets" });
       }
