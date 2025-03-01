@@ -69,6 +69,7 @@ export const timesheetRelations = relations(timesheets, ({ one }) => ({
   }),
 }));
 
+// Create insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
