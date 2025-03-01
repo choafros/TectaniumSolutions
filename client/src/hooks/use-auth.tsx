@@ -35,8 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user && !user.active) {
       toast({
-        title: "Account Inactive",
-        description: "Your account is currently inactive. Please contact an administrator.",
+        title: "Account Deactivated",
+        description: "Your account is deactivated. Please contact your administrator.",
         variant: "destructive",
       });
     }
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await apiRequest("POST", "/api/login", credentials);
       const user = await res.json();
       if (!user.active) {
-        throw new Error("Your account is inactive. Please contact an administrator.");
+        throw new Error("Your account is deactivated. Please contact your administrator.");
       }
       return user;
     },

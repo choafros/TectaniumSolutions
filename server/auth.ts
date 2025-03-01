@@ -48,7 +48,7 @@ export function setupAuth(app: Express) {
         if (!user || !(await comparePasswords(password, user.password))) {
           return done(null, false);
         } else if (!user.active) {
-          return done(new Error("Your account is inactive. Please contact an administrator."));
+          return done(new Error("Your account is deactivated. Please contact your administrator."));
         } else {
           return done(null, user);
         }
