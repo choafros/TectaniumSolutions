@@ -68,7 +68,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.user) return res.sendStatus(401);
       if (req.user.role === "admin") {
-        const docs = await storage.listAllDocuments();
+        const docs = await db.select({
+          id: documents.id,
+          name: documents.name,
+          path: documents.path,
+          uploadedAt: documents.uploadedAt,
+          approved: documents.approved,
+          userId: documents.userId,
+          username: users.username,
+        })
+          .from(documents)
+          .leftJoin(users, eq(documents.userId, users.id));
         res.json(docs);
       } else {
         const docs = await storage.getDocuments(req.user.id);
@@ -118,7 +128,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.user) return res.sendStatus(401);
       if (req.user.role === "admin") {
-        const timesheets = await storage.listTimesheets();
+        const timesheets = await db.select({
+          id: timesheets.id,
+          userId: timesheets.userId,
+          weekStarting: timesheets.weekStarting,
+          hours: timesheets.hours,
+          status: timesheets.status,
+          notes: timesheets.notes,
+          username: users.username,
+        })
+          .from(timesheets)
+          .leftJoin(users, eq(timesheets.userId, users.id));
         res.json(timesheets);
       } else {
         const timesheets = await storage.getUserTimesheets(req.user.id);

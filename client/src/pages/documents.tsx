@@ -106,17 +106,17 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Document Name</TableHead>
-              <TableHead>Upload Date</TableHead>
+              <TableHead className="whitespace-nowrap">Upload Date</TableHead>
               <TableHead>Status</TableHead>
               {user?.role === "admin" && (
                 <>
                   <TableHead>Uploaded By</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="whitespace-nowrap">Actions</TableHead>
                 </>
               )}
             </TableRow>
@@ -125,7 +125,7 @@ export default function DocumentsPage() {
             {documents?.map((doc) => (
               <TableRow key={doc.id}>
                 <TableCell>{doc.name}</TableCell>
-                <TableCell>
+                <TableCell className="whitespace-nowrap">
                   {format(new Date(doc.uploadedAt), "MMM d, yyyy")}
                 </TableCell>
                 <TableCell>
@@ -139,9 +139,11 @@ export default function DocumentsPage() {
                 </TableCell>
                 {user?.role === "admin" && (
                   <>
-                    <TableCell>Employee #{doc.userId}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
+                      {(doc as any).username || `Employee #${doc.userId}`}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
                         <Button
                           size="sm"
                           variant="outline"

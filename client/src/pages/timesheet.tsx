@@ -198,17 +198,17 @@ export default function TimesheetPage() {
         </div>
       )}
 
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Week Starting</TableHead>
+              <TableHead className="whitespace-nowrap">Week Starting</TableHead>
               <TableHead>Hours</TableHead>
               <TableHead>Status</TableHead>
               {user?.role === "admin" && (
                 <>
                   <TableHead>Employee</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="whitespace-nowrap">Actions</TableHead>
                 </>
               )}
             </TableRow>
@@ -216,7 +216,7 @@ export default function TimesheetPage() {
           <TableBody>
             {timesheets?.map((timesheet) => (
               <TableRow key={timesheet.id}>
-                <TableCell>
+                <TableCell className="whitespace-nowrap">
                   {format(new Date(timesheet.weekStarting), "MMM d, yyyy")}
                 </TableCell>
                 <TableCell>
@@ -239,15 +239,19 @@ export default function TimesheetPage() {
                     timesheet.hours
                   )}
                 </TableCell>
-                <TableCell className="flex items-center gap-2">
-                  {statusIcons[timesheet.status as keyof typeof statusIcons]}
-                  <span className="capitalize">{timesheet.status}</span>
+                <TableCell className="whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    {statusIcons[timesheet.status as keyof typeof statusIcons]}
+                    <span className="capitalize">{timesheet.status}</span>
+                  </div>
                 </TableCell>
                 {user?.role === "admin" && (
                   <>
-                    <TableCell>Employee #{timesheet.userId}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
+                      {(timesheet as any).username || `Employee #${timesheet.userId}`}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
                         <Button
                           size="sm"
                           variant="outline"
