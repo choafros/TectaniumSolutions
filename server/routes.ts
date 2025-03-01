@@ -40,7 +40,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/documents", async (req, res) => {
     try {
       if (!req.user) return res.sendStatus(401);
+
       if (req.user.role === "admin") {
+        // Admin sees all documents with user information
         const docs = await db.select({
           id: documents.id,
           name: documents.name,
@@ -54,11 +56,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .leftJoin(users, eq(documents.userId, users.id));
         res.json(docs);
       } else {
+        // Users only see their own documents
         const docs = await storage.getDocuments(req.user.id);
         res.json(docs);
       }
     } catch (error: any) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/documents/:id", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+      await storage.deleteDocument(parseInt(req.params.id));
+      res.sendStatus(200);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
     }
   });
 
@@ -97,13 +110,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error("A timesheet for this week already exists");
       }
 
-      const parsed = insertTimesheetSchema.parse({
-        ...req.body,
+      const timesheet = await storage.createTimesheet({
         userId: req.user.id,
         weekStarting,
+        hours: req.body.hours,
+        status: "pending",
       });
 
-      const timesheet = await storage.createTimesheet(parsed);
       res.status(201).json(timesheet);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
@@ -131,15 +144,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json(allTimesheets);
       } else {
         // Regular users only see their own timesheets
-        const userTimesheets = await db
-          .select()
-          .from(timesheets)
-          .where(eq(timesheets.userId, req.user.id));
-
+        const userTimesheets = await storage.getUserTimesheets(req.user.id);
         res.json(userTimesheets);
       }
     } catch (error: any) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/timesheets/:id", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+      await storage.deleteTimesheet(parseInt(req.params.id));
+      res.sendStatus(200);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
     }
   });
 
@@ -177,6 +196,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/users/:id", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+
+      const userId = parseInt(req.params.id);
+      if (userId === req.user.id) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+
+      await storage.deleteUser(userId);
+      res.sendStatus(200);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
     }
   });
 

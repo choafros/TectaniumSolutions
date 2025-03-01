@@ -11,10 +11,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import type { User } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function UsersPage() {
   const { user } = useAuth();
@@ -52,6 +63,26 @@ export default function UsersPage() {
     },
   });
 
+  const deleteUser = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (user?.role !== "admin") {
     return <div>Unauthorized</div>;
   }
@@ -75,7 +106,7 @@ export default function UsersPage() {
         </p>
       </div>
 
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -83,42 +114,75 @@ export default function UsersPage() {
               <TableHead>Role</TableHead>
               <TableHead>Organization</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="whitespace-nowrap">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users?.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>{user.username}</TableCell>
+            {users?.map((listUser) => (
+              <TableRow key={listUser.id}>
+                <TableCell>{listUser.username}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className="capitalize">
-                    {user.role}
+                    {listUser.role}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {user.companyId ? `Organization #${user.companyId}` : "-"}
+                  {listUser.companyId ? `Organization #${listUser.companyId}` : "-"}
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={user.active ? "default" : "destructive"}
+                    variant={listUser.active ? "default" : "destructive"}
                   >
-                    {user.active ? "Active" : "Inactive"}
+                    {listUser.active ? "Active" : "Inactive"}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      updateUser.mutate({
-                        id: user.id,
-                        active: !user.active,
-                      })
-                    }
-                    disabled={updateUser.isPending}
-                  >
-                    {user.active ? "Deactivate" : "Activate"}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        updateUser.mutate({
+                          id: listUser.id,
+                          active: !listUser.active,
+                        })
+                      }
+                      disabled={updateUser.isPending}
+                    >
+                      {listUser.active ? "Deactivate" : "Activate"}
+                    </Button>
+
+                    {listUser.id !== user.id && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete User</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete {listUser.username}? This action cannot be undone.
+                              All associated timesheets and documents will also be deleted.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteUser.mutate(listUser.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

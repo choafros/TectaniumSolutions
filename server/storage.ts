@@ -19,17 +19,20 @@ export interface IStorage {
   createDocument(doc: InsertDocument): Promise<Document>;
   getDocuments(userId: number): Promise<Document[]>;
   updateDocument(id: number, doc: Partial<Document>): Promise<Document>;
+  deleteDocument(id: number): Promise<void>;
   listAllDocuments(): Promise<Document[]>;
 
   createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet>;
   getTimesheet(id: number): Promise<Timesheet | undefined>;
   getUserTimesheets(userId: number): Promise<Timesheet[]>;
   updateTimesheet(id: number, timesheet: Partial<Timesheet>): Promise<Timesheet>;
+  deleteTimesheet(id: number): Promise<void>;
   listTimesheets(): Promise<Timesheet[]>;
 
   sessionStore: session.Store;
   listUsers(): Promise<User[]>;
   updateUser(id: number, user: Partial<User>): Promise<User>;
+  deleteUser(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -67,6 +70,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return user;
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    // First delete all related timesheets and documents
+    await db.delete(timesheets).where(eq(timesheets.userId, id));
+    await db.delete(documents).where(eq(documents.userId, id));
+    await db.delete(users).where(eq(users.id, id));
   }
 
   async getCompany(id: number): Promise<Company | undefined> {
@@ -110,6 +120,10 @@ export class DatabaseStorage implements IStorage {
     return updatedDoc;
   }
 
+  async deleteDocument(id: number): Promise<void> {
+    await db.delete(documents).where(eq(documents.id, id));
+  }
+
   async listAllDocuments(): Promise<Document[]> {
     return await db.select().from(documents);
   }
@@ -135,6 +149,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(timesheets.id, id))
       .returning();
     return updatedTimesheet;
+  }
+
+  async deleteTimesheet(id: number): Promise<void> {
+    await db.delete(timesheets).where(eq(timesheets.id, id));
   }
 
   async listTimesheets(): Promise<Timesheet[]> {
