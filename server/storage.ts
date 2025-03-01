@@ -1,6 +1,6 @@
 import { User, Company, Document, Timesheet, InsertUser, InsertCompany, InsertDocument, InsertTimesheet } from "@shared/schema";
 import { db, users, companies, documents, timesheets } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 
@@ -10,6 +10,9 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  listUsers(): Promise<User[]>;
+  updateUser(id: number, user: Partial<User>): Promise<User>;
+  deleteUser(id: number): Promise<void>;
 
   getCompany(id: number): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
@@ -20,19 +23,16 @@ export interface IStorage {
   getDocuments(userId: number): Promise<Document[]>;
   updateDocument(id: number, doc: Partial<Document>): Promise<Document>;
   deleteDocument(id: number): Promise<void>;
-  listAllDocuments(): Promise<Document[]>;
+  listAllDocuments(): Promise<(Document & { username: string })[]>;
 
   createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet>;
   getTimesheet(id: number): Promise<Timesheet | undefined>;
   getUserTimesheets(userId: number): Promise<Timesheet[]>;
   updateTimesheet(id: number, timesheet: Partial<Timesheet>): Promise<Timesheet>;
   deleteTimesheet(id: number): Promise<void>;
-  listTimesheets(): Promise<Timesheet[]>;
+  listAllTimesheets(): Promise<(Timesheet & { username: string })[]>;
 
   sessionStore: session.Store;
-  listUsers(): Promise<User[]>;
-  updateUser(id: number, user: Partial<User>): Promise<User>;
-  deleteUser(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -124,8 +124,19 @@ export class DatabaseStorage implements IStorage {
     await db.delete(documents).where(eq(documents.id, id));
   }
 
-  async listAllDocuments(): Promise<Document[]> {
-    return await db.select().from(documents);
+  async listAllDocuments(): Promise<(Document & { username: string })[]> {
+    return await db
+      .select({
+        id: documents.id,
+        userId: documents.userId,
+        name: documents.name,
+        path: documents.path,
+        uploadedAt: documents.uploadedAt,
+        approved: documents.approved,
+        username: users.username,
+      })
+      .from(documents)
+      .leftJoin(users, eq(documents.userId, users.id));
   }
 
   async createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet> {
@@ -155,8 +166,19 @@ export class DatabaseStorage implements IStorage {
     await db.delete(timesheets).where(eq(timesheets.id, id));
   }
 
-  async listTimesheets(): Promise<Timesheet[]> {
-    return await db.select().from(timesheets);
+  async listAllTimesheets(): Promise<(Timesheet & { username: string })[]> {
+    return await db
+      .select({
+        id: timesheets.id,
+        userId: timesheets.userId,
+        weekStarting: timesheets.weekStarting,
+        hours: timesheets.hours,
+        status: timesheets.status,
+        notes: timesheets.notes,
+        username: users.username,
+      })
+      .from(timesheets)
+      .leftJoin(users, eq(timesheets.userId, users.id));
   }
 }
 

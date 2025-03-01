@@ -2,7 +2,6 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
-import { insertCompanySchema, insertTimesheetSchema } from "@shared/schema";
 import { db, users, companies, documents, timesheets } from "./db";
 import { eq, and } from "drizzle-orm";
 
@@ -43,17 +42,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (req.user.role === "admin") {
         // Admin sees all documents with user information
-        const docs = await db.select({
-          id: documents.id,
-          name: documents.name,
-          path: documents.path,
-          uploadedAt: documents.uploadedAt,
-          approved: documents.approved,
-          userId: documents.userId,
-          username: users.username,
-        })
-        .from(documents)
-        .leftJoin(users, eq(documents.userId, users.id));
+        const docs = await storage.listAllDocuments();
         res.json(docs);
       } else {
         // Users only see their own documents
@@ -96,17 +85,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if timesheet already exists for this week and user
-      const existingTimesheet = await db
-        .select()
-        .from(timesheets)
-        .where(
-          and(
-            eq(timesheets.userId, req.user.id),
-            eq(timesheets.weekStarting, weekStarting)
-          )
-        );
+      const existingTimesheets = await storage.getUserTimesheets(req.user.id);
+      const hasExisting = existingTimesheets.some(
+        t => t.weekStarting.toISOString().split('T')[0] === weekStarting.toISOString().split('T')[0]
+      );
 
-      if (existingTimesheet.length > 0) {
+      if (hasExisting) {
         throw new Error("A timesheet for this week already exists");
       }
 
@@ -129,18 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (req.user.role === "admin") {
         // Admin sees all timesheets with user information
-        const allTimesheets = await db.select({
-          id: timesheets.id,
-          userId: timesheets.userId,
-          weekStarting: timesheets.weekStarting,
-          hours: timesheets.hours,
-          status: timesheets.status,
-          notes: timesheets.notes,
-          username: users.username,
-        })
-        .from(timesheets)
-        .leftJoin(users, eq(timesheets.userId, users.id));
-
+        const allTimesheets = await storage.listAllTimesheets();
         res.json(allTimesheets);
       } else {
         // Regular users only see their own timesheets
@@ -166,12 +139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.user) return res.sendStatus(401);
 
-      // Get the timesheet first to check ownership
-      const [timesheet] = await db
-        .select()
-        .from(timesheets)
-        .where(eq(timesheets.id, parseInt(req.params.id)));
-
+      const timesheet = await storage.getTimesheet(parseInt(req.params.id));
       if (!timesheet) {
         return res.status(404).json({ message: "Timesheet not found" });
       }
