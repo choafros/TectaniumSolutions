@@ -15,6 +15,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       password: await hashPassword("admin"),
       role: "admin",
       companyId: null,
+      active: true,
     });
   }
 
@@ -141,7 +142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add these routes after the existing routes
+  // Users
   app.get("/api/users", async (req, res) => {
     try {
       if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
