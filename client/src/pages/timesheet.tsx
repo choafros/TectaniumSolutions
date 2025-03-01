@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import type { Timesheet } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { format, startOfWeek, addDays } from "date-fns";
+import { format } from "date-fns";
 import { useForm } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import {
@@ -42,13 +42,9 @@ export default function TimesheetPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Set default weekStarting to the current week's Monday
-  const today = new Date();
-  const monday = startOfWeek(today, { weekStartsOn: 1 });
-
   const form = useForm<TimesheetFormData>({
     defaultValues: {
-      weekStarting: format(monday, 'yyyy-MM-dd'),
+      weekStarting: format(new Date(), 'yyyy-MM-dd'),
       hours: 40,
     },
   });
@@ -60,15 +56,6 @@ export default function TimesheetPage() {
   const submitTimesheet = useMutation({
     mutationFn: async (data: TimesheetFormData) => {
       try {
-        // Check if timesheet already exists for this week
-        const existingTimesheet = timesheets?.find(
-          (t) => format(new Date(t.weekStarting), 'yyyy-MM-dd') === data.weekStarting
-        );
-
-        if (existingTimesheet) {
-          throw new Error("A timesheet for this week already exists");
-        }
-
         const res = await apiRequest("POST", "/api/timesheets", {
           weekStarting: new Date(data.weekStarting).toISOString(),
           hours: Number(data.hours),
@@ -84,10 +71,7 @@ export default function TimesheetPage() {
         title: "Success",
         description: "Timesheet submitted successfully",
       });
-      form.reset({
-        weekStarting: format(monday, 'yyyy-MM-dd'),
-        hours: 40,
-      });
+      form.reset();
     },
     onError: (error: Error) => {
       toast({
@@ -129,6 +113,11 @@ export default function TimesheetPage() {
       </DashboardLayout>
     );
   }
+
+  // Filter timesheets based on user role
+  const filteredTimesheets = user?.role === "admin" 
+    ? timesheets 
+    : timesheets?.filter(t => t.userId === user?.id);
 
   return (
     <DashboardLayout>
@@ -214,7 +203,7 @@ export default function TimesheetPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {timesheets?.map((timesheet) => (
+            {filteredTimesheets?.map((timesheet) => (
               <TableRow key={timesheet.id}>
                 <TableCell className="whitespace-nowrap">
                   {format(new Date(timesheet.weekStarting), "MMM d, yyyy")}
@@ -261,8 +250,9 @@ export default function TimesheetPage() {
                               status: "approved",
                             })
                           }
+                          disabled={timesheet.status === "approved"}
                         >
-                          Approve
+                          {timesheet.status === "approved" ? "Approved" : "Approve"}
                         </Button>
                         <Button
                           size="sm"
@@ -273,8 +263,9 @@ export default function TimesheetPage() {
                               status: "rejected",
                             })
                           }
+                          disabled={timesheet.status === "rejected"}
                         >
-                          Reject
+                          {timesheet.status === "rejected" ? "Rejected" : "Reject"}
                         </Button>
                       </div>
                     </TableCell>

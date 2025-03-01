@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { Document } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -77,6 +77,11 @@ export default function DocumentsPage() {
     );
   }
 
+  // Filter documents based on user role
+  const filteredDocuments = user?.role === "admin" 
+    ? documents 
+    : documents?.filter(d => d.userId === user?.id);
+
   return (
     <DashboardLayout>
       <div className="mb-8">
@@ -122,7 +127,7 @@ export default function DocumentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {documents?.map((doc) => (
+            {filteredDocuments?.map((doc) => (
               <TableRow key={doc.id}>
                 <TableCell>{doc.name}</TableCell>
                 <TableCell className="whitespace-nowrap">
@@ -140,7 +145,7 @@ export default function DocumentsPage() {
                 {user?.role === "admin" && (
                   <>
                     <TableCell>
-                      {(doc as any).username || `Employee #${doc.userId}`}
+                      {(doc as any).username || `User ${doc.userId}`}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
