@@ -248,7 +248,7 @@ export default function TimesheetPage() {
                 {user?.role === "admin" && (
                   <>
                     <TableCell>
-                      {(timesheet as any).username || `Employee #${timesheet.userId}`}
+                      {(timesheet as any).username || `User ${timesheet.userId}`}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">

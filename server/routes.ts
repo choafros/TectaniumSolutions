@@ -77,7 +77,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.user) return res.sendStatus(401);
 
-      // Parse the date string into a Date object
       const weekStarting = new Date(req.body.weekStarting);
       if (isNaN(weekStarting.getTime())) {
         throw new Error("Invalid date format");
@@ -114,8 +113,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/timesheets", async (req, res) => {
     try {
       if (!req.user) return res.sendStatus(401);
+
       if (req.user.role === "admin") {
-        const timesheets = await db.select({
+        // Admin sees all timesheets with user information
+        const allTimesheets = await db.select({
           id: timesheets.id,
           userId: timesheets.userId,
           weekStarting: timesheets.weekStarting,
@@ -126,10 +127,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .from(timesheets)
         .leftJoin(users, eq(timesheets.userId, users.id));
-        res.json(timesheets);
+
+        res.json(allTimesheets);
       } else {
-        const timesheets = await storage.getUserTimesheets(req.user.id);
-        res.json(timesheets);
+        // Regular users only see their own timesheets
+        const userTimesheets = await db
+          .select()
+          .from(timesheets)
+          .where(eq(timesheets.userId, req.user.id));
+
+        res.json(userTimesheets);
       }
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -138,9 +145,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/timesheets/:id", async (req, res) => {
     try {
-      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
-      const timesheet = await storage.updateTimesheet(parseInt(req.params.id), req.body);
-      res.json(timesheet);
+      if (!req.user) return res.sendStatus(401);
+
+      // Get the timesheet first to check ownership
+      const [timesheet] = await db
+        .select()
+        .from(timesheets)
+        .where(eq(timesheets.id, parseInt(req.params.id)));
+
+      if (!timesheet) {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+
+      // Only admin can update any timesheet, regular users can only update their own
+      if (req.user.role !== "admin" && timesheet.userId !== req.user.id) {
+        return res.status(403).json({ message: "Unauthorized to modify this timesheet" });
+      }
+
+      const updatedTimesheet = await storage.updateTimesheet(parseInt(req.params.id), req.body);
+      res.json(updatedTimesheet);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
