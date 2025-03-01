@@ -42,6 +42,15 @@ export default function Dashboard() {
     return <DashboardLayout>Loading...</DashboardLayout>;
   }
 
+  // Filter data based on user role
+  const userDocuments = user?.role === "admin" 
+    ? documents 
+    : documents?.filter(d => d.userId === user?.id);
+
+  const userTimesheets = user?.role === "admin"
+    ? timesheets
+    : timesheets?.filter(t => t.userId === user?.id);
+
   const pendingTimesheets = timesheets?.filter(t => t.status === "pending") || [];
   const pendingDocuments = documents?.filter(d => !d.approved) || [];
 
@@ -71,7 +80,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <p className="text-2xl font-bold">{timesheets?.length || 0}</p>
+                  <p className="text-2xl font-bold">{userTimesheets?.length || 0}</p>
                   <p className="text-sm text-muted-foreground">Total submissions</p>
                   <Link href="/timesheet">
                     <Button className="w-full mt-4">Submit Hours</Button>
@@ -90,7 +99,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <p className="text-2xl font-bold">{documents?.length || 0}</p>
+                  <p className="text-2xl font-bold">{userDocuments?.length || 0}</p>
                   <p className="text-sm text-muted-foreground">Files uploaded</p>
                   <Link href="/documents">
                     <Button className="w-full mt-4">Upload Document</Button>

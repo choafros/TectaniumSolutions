@@ -145,7 +145,7 @@ export default function DocumentsPage() {
                 {user?.role === "admin" && (
                   <>
                     <TableCell>
-                      {(doc as any).username || `User ${doc.userId}`}
+                      {(doc as any).username}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
