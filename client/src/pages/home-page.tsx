@@ -43,7 +43,6 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">Industry Certifications</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 items-center justify-items-center">
-            {/* Placeholder certification images */}
             <div className="bg-card p-6 rounded-lg w-full max-w-[200px] aspect-square flex items-center justify-center">
               <div className="text-center">
                 <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
@@ -101,19 +100,27 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">Get Started</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div className="bg-background p-6 rounded-lg text-center">
-              <h3 className="text-xl font-semibold mb-4">For Clients</h3>
-              <p className="mb-6">Access our pool of skilled professionals and managed services</p>
-              <Link href="/auth">
-                <Button className="w-full">Client Portal</Button>
-              </Link>
+            <div className="bg-background p-6 rounded-lg flex flex-col h-[200px]">
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold mb-4">For Clients</h3>
+                <p className="text-muted-foreground">Access our pool of skilled professionals and managed services</p>
+              </div>
+              <div className="mt-auto">
+                <Link href="/auth">
+                  <Button className="w-full">Client Portal</Button>
+                </Link>
+              </div>
             </div>
-            <div className="bg-background p-6 rounded-lg text-center">
-              <h3 className="text-xl font-semibold mb-4">For Candidates</h3>
-              <p className="mb-6">Join our network of professional contractors</p>
-              <Link href="/auth">
-                <Button className="w-full">Candidate Portal</Button>
-              </Link>
+            <div className="bg-background p-6 rounded-lg flex flex-col h-[200px]">
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold mb-4">For Candidates</h3>
+                <p className="text-muted-foreground">Join our network of professional contractors</p>
+              </div>
+              <div className="mt-auto">
+                <Link href="/auth">
+                  <Button className="w-full">Candidate Portal</Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
