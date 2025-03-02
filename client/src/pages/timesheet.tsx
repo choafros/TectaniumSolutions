@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle, XCircle, Clock, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Clock, RefreshCw, Trash2 } from "lucide-react";
 import type { Timesheet } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, startOfWeek, isMonday } from "date-fns";
@@ -28,6 +28,17 @@ import {
 } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const statusIcons = {
   pending: <Clock className="h-5 w-5 text-yellow-500" />,
@@ -56,7 +67,7 @@ export default function TimesheetPage() {
   const form = useForm<TimesheetFormData>({
     resolver: zodResolver(TimesheetFormSchema),
     defaultValues: {
-      weekStarting: format(monday, 'yyyy-MM-dd'),
+      weekStarting: format(monday, "yyyy-MM-dd"),
       hours: 40,
     },
   });
@@ -80,7 +91,7 @@ export default function TimesheetPage() {
         description: "Timesheet submitted successfully",
       });
       form.reset({
-        weekStarting: format(monday, 'yyyy-MM-dd'),
+        weekStarting: format(monday, "yyyy-MM-dd"),
         hours: 40,
       });
     },
@@ -115,6 +126,26 @@ export default function TimesheetPage() {
     },
   });
 
+  const deleteTimesheet = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/timesheets/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
+      toast({
+        title: "Success",
+        description: "Timesheet deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -126,9 +157,9 @@ export default function TimesheetPage() {
   }
 
   // Filter timesheets based on user role
-  const filteredTimesheets = user?.role === "admin" 
-    ? timesheets 
-    : timesheets?.filter(t => t.userId === user?.id);
+  const filteredTimesheets = user?.role === "admin"
+    ? timesheets
+    : timesheets?.filter((t) => t.userId === user?.id);
 
   return (
     <DashboardLayout>
@@ -185,9 +216,9 @@ export default function TimesheetPage() {
                   <FormItem>
                     <FormLabel>Total Hours</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        {...field} 
+                      <Input
+                        type="number"
+                        {...field}
                         onChange={(e) => field.onChange(Number(e.target.value))}
                       />
                     </FormControl>
@@ -294,6 +325,34 @@ export default function TimesheetPage() {
                         >
                           {timesheet.status === "rejected" ? "Rejected" : "Reject"}
                         </Button>
+
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Timesheet</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete this timesheet? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteTimesheet.mutate(timesheet.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </>
