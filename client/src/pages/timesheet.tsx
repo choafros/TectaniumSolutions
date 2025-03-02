@@ -11,10 +11,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Clock, RefreshCw } from "lucide-react";
 import type { Timesheet } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { format } from "date-fns";
+import { format, startOfWeek, isMonday } from "date-fns";
 import { useForm } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,6 +26,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 const statusIcons = {
   pending: <Clock className="h-5 w-5 text-yellow-500" />,
@@ -33,37 +35,43 @@ const statusIcons = {
   rejected: <XCircle className="h-5 w-5 text-red-500" />,
 } as const;
 
-type TimesheetFormData = {
-  weekStarting: string;
-  hours: number;
-};
+const TimesheetFormSchema = z.object({
+  weekStarting: z.string().refine((date) => {
+    const selectedDate = new Date(date);
+    return !isNaN(selectedDate.getTime()) && isMonday(selectedDate);
+  }, "Please select a Monday as the week starting date"),
+  hours: z.number().min(0).max(168, "Maximum hours per week is 168"),
+});
+
+type TimesheetFormData = z.infer<typeof TimesheetFormSchema>;
 
 export default function TimesheetPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Set default weekStarting to the current week's Monday
+  const today = new Date();
+  const monday = startOfWeek(today, { weekStartsOn: 1 });
+
   const form = useForm<TimesheetFormData>({
+    resolver: zodResolver(TimesheetFormSchema),
     defaultValues: {
-      weekStarting: format(new Date(), 'yyyy-MM-dd'),
+      weekStarting: format(monday, 'yyyy-MM-dd'),
       hours: 40,
     },
   });
 
-  const { data: timesheets, isLoading } = useQuery<Timesheet[]>({
+  const { data: timesheets, isLoading, refetch } = useQuery<Timesheet[]>({
     queryKey: ["/api/timesheets"],
   });
 
   const submitTimesheet = useMutation({
     mutationFn: async (data: TimesheetFormData) => {
-      try {
-        const res = await apiRequest("POST", "/api/timesheets", {
-          weekStarting: new Date(data.weekStarting).toISOString(),
-          hours: Number(data.hours),
-        });
-        return res.json();
-      } catch (error) {
-        throw new Error(error instanceof Error ? error.message : "Failed to submit timesheet");
-      }
+      const res = await apiRequest("POST", "/api/timesheets", {
+        weekStarting: new Date(data.weekStarting).toISOString(),
+        hours: Number(data.hours),
+      });
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
@@ -71,7 +79,10 @@ export default function TimesheetPage() {
         title: "Success",
         description: "Timesheet submitted successfully",
       });
-      form.reset();
+      form.reset({
+        weekStarting: format(monday, 'yyyy-MM-dd'),
+        hours: 40,
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -122,12 +133,24 @@ export default function TimesheetPage() {
   return (
     <DashboardLayout>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Timesheets</h1>
-        <p className="text-muted-foreground mt-2">
-          {user?.role === "admin"
-            ? "Review and manage submitted timesheets"
-            : "Submit and track your work hours"}
-        </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Timesheets</h1>
+            <p className="text-muted-foreground mt-2">
+              {user?.role === "admin"
+                ? "Review and manage submitted timesheets"
+                : "Submit and track your work hours"}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => refetch()}
+            className="h-10 w-10"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {user?.role === "candidate" && (
@@ -148,7 +171,7 @@ export default function TimesheetPage() {
                       <Input type="date" {...field} />
                     </FormControl>
                     <FormDescription>
-                      Select the Monday of the week you're submitting hours for
+                      Select a Monday as the start of your work week
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -162,10 +185,14 @@ export default function TimesheetPage() {
                   <FormItem>
                     <FormLabel>Total Hours</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" max="168" {...field} />
+                      <Input 
+                        type="number" 
+                        {...field} 
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
                     </FormControl>
                     <FormDescription>
-                      Enter your total hours for the week
+                      Enter your total hours for the week (max 168)
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -237,7 +264,7 @@ export default function TimesheetPage() {
                 {user?.role === "admin" && (
                   <>
                     <TableCell>
-                      {(timesheet as any).username || `User ${timesheet.userId}`}
+                      {(timesheet as any).username}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
