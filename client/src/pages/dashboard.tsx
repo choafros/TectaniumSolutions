@@ -27,15 +27,21 @@ export default function Dashboard() {
 
   const { data: documents, isLoading: loadingDocs } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
+    staleTime: 0,
+    cacheTime: 0,
   });
 
-  const { data: timesheets, isLoading: loadingTimesheets } = useQuery<Timesheet[]>({
+  const { data: timesheets, isLoading: loadingTimesheets } = useQuery<(Timesheet & { username: string })[]>({
     queryKey: ["/api/timesheets"],
+    staleTime: 0, // Always fetch fresh data
+    cacheTime: 0, // Don't cache the data
   });
 
   const { data: companies, isLoading: loadingCompanies } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
     enabled: user?.role === "admin",
+    staleTime: 0,
+    cacheTime: 0,
   });
 
   if (loadingDocs || loadingTimesheets || loadingCompanies) {
@@ -45,11 +51,11 @@ export default function Dashboard() {
   // Filter data based on user role
   const userDocuments = user?.role === "admin" 
     ? documents 
-    : documents?.filter(d => d.userId === user?.id);
+    : documents?.filter(d => d.userId === user?.id) || [];
 
   const userTimesheets = user?.role === "admin"
     ? timesheets
-    : timesheets?.filter(t => t.userId === user?.id);
+    : timesheets?.filter(t => t.userId === user?.id) || [];
 
   const pendingTimesheets = timesheets?.filter(t => t.status === "pending") || [];
   const pendingDocuments = documents?.filter(d => !d.approved) || [];

@@ -11,6 +11,8 @@ import {
   LogOut,
   Menu,
   X,
+  Settings,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -40,6 +42,12 @@ const sidebarItems: SidebarItem[] = [
     roles: ["candidate", "admin"],
   },
   {
+    icon: Receipt,
+    label: "Invoices",
+    href: "/invoices",
+    roles: ["admin"],
+  },
+  {
     icon: Users,
     label: "Users",
     href: "/users",
@@ -49,6 +57,12 @@ const sidebarItems: SidebarItem[] = [
     icon: Building2,
     label: "Organizations",
     href: "/organizations",
+    roles: ["admin"],
+  },
+  {
+    icon: Settings,
+    label: "Settings",
+    href: "/settings",
     roles: ["admin"],
   },
 ];

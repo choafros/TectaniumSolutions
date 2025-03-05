@@ -11,6 +11,8 @@ import Dashboard from "@/pages/dashboard";
 import Timesheet from "@/pages/timesheet";
 import Documents from "@/pages/documents";
 import Users from "@/pages/users";
+import Settings from "@/pages/settings";
+import InvoicesPage from "@/pages/invoices"; // Import the new component
 
 function Router() {
   return (
@@ -21,6 +23,8 @@ function Router() {
       <ProtectedRoute path="/timesheet" component={Timesheet} />
       <ProtectedRoute path="/documents" component={Documents} />
       <ProtectedRoute path="/users" component={Users} />
+      <ProtectedRoute path="/invoices" component={InvoicesPage} />
+      <ProtectedRoute path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );

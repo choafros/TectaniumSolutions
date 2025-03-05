@@ -29,6 +29,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useQuery<SelectUser | undefined, Error>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
+    staleTime: 0,
+    cacheTime: 0,
   });
 
   // Show message for inactive users
@@ -52,6 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return user;
     },
     onSuccess: (user: SelectUser) => {
+      // Clear all queries and set user data
+      queryClient.clear();
       queryClient.setQueryData(["/api/user"], user);
     },
     onError: (error: Error) => {
@@ -69,6 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await res.json();
     },
     onSuccess: (user: SelectUser) => {
+      // Clear all queries and set user data
+      queryClient.clear();
       queryClient.setQueryData(["/api/user"], user);
     },
     onError: (error: Error) => {
@@ -85,6 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await apiRequest("POST", "/api/logout");
     },
     onSuccess: () => {
+      // Clear all queries including user data
+      queryClient.clear();
       queryClient.setQueryData(["/api/user"], null);
     },
     onError: (error: Error) => {

@@ -1,8 +1,28 @@
-import { User, Company, Document, Timesheet, InsertUser, InsertCompany, InsertDocument, InsertTimesheet } from "@shared/schema";
-import { db, users, companies, documents, timesheets } from "./db";
-import { eq, and } from "drizzle-orm";
+import {
+  User,
+  Company,
+  Document,
+  Timesheet,
+  Invoice,
+  InsertUser,
+  InsertCompany,
+  InsertDocument,
+  InsertTimesheet,
+  InsertInvoice,
+} from "@shared/schema";
+import {
+  db,
+  users,
+  companies,
+  documents,
+  timesheets,
+  invoices,
+  invoiceTimesheets,
+} from "./db";
+import { eq } from "drizzle-orm";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import { generateReferenceNumber } from "@shared/utils";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -28,9 +48,24 @@ export interface IStorage {
   createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet>;
   getTimesheet(id: number): Promise<Timesheet | undefined>;
   getUserTimesheets(userId: number): Promise<Timesheet[]>;
-  updateTimesheet(id: number, timesheet: Partial<Timesheet>): Promise<Timesheet>;
+  updateTimesheet(
+    id: number,
+    timesheet: Partial<Timesheet>,
+  ): Promise<Timesheet>;
   deleteTimesheet(id: number): Promise<void>;
   listAllTimesheets(): Promise<(Timesheet & { username: string })[]>;
+
+  // Updated invoice methods
+  createInvoice(
+    invoice: InsertInvoice,
+    timesheetIds: number[],
+  ): Promise<Invoice>;
+  updateInvoice(id: number, invoice: Partial<Invoice>): Promise<Invoice>;
+  listAllInvoices(): Promise<(Invoice & { username: string })[]>;
+  getInvoiceTimesheets(
+    invoiceId: number,
+  ): Promise<(Timesheet & { username: string })[]>;
+  deleteInvoice(id: number): Promise<void>;
 
   sessionStore: session.Store;
 }
@@ -50,7 +85,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
     return user;
   }
 
@@ -78,7 +116,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCompany(id: number): Promise<Company | undefined> {
-    const [company] = await db.select().from(companies).where(eq(companies.id, id));
+    const [company] = await db
+      .select()
+      .from(companies)
+      .where(eq(companies.id, id));
     return company;
   }
 
@@ -139,19 +180,234 @@ export class DatabaseStorage implements IStorage {
       .from(documents)
       .leftJoin(users, eq(documents.userId, users.id));
 
-    return docs.map(doc => ({
+    return docs.map((doc) => ({
       ...doc,
-      username: doc.username || 'Unknown User'
+      username: doc.username || "Unknown User",
     }));
   }
 
   async createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet> {
-    const [newTimesheet] = await db.insert(timesheets).values(timesheet).returning();
-    return newTimesheet;
+    // Function to generate reference number
+    const generateReference = async (attempt = 0): Promise<string> => {
+      // Get the last timesheet to determine next ID
+      const [lastTimesheet] = await db
+        .select()
+        .from(timesheets)
+        .orderBy(timesheets.id, 'desc')
+        .limit(1);
+
+      const baseId = (lastTimesheet?.id || 0) + 1;
+      const attemptId = baseId + attempt;
+      const referenceNumber = `TS-${attemptId.toString().padStart(6, '0')}`;
+
+      // Check if this reference number already exists
+      const [existing] = await db
+        .select()
+        .from(timesheets)
+        .where(eq(timesheets.referenceNumber, referenceNumber));
+
+      if (existing) {
+        // If exists, try next number
+        return generateReference(attempt + 1);
+      }
+
+      return referenceNumber;
+    };
+
+    try {
+      const referenceNumber = await generateReference();
+      console.log('Creating timesheet with reference:', referenceNumber);
+
+      const [newTimesheet] = await db
+        .insert(timesheets)
+        .values({
+          ...timesheet,
+          referenceNumber,
+        })
+        .returning();
+
+      return newTimesheet;
+    } catch (error) {
+      console.error('Error creating timesheet:', error);
+      throw new Error('Failed to create timesheet with unique reference number');
+    }
   }
 
+  async updateTimesheet(
+    id: number,
+    timesheet: Partial<Timesheet>,
+  ): Promise<Timesheet> {
+    console.log("Updating timesheet:", id, timesheet);
+    const [updatedTimesheet] = await db
+      .update(timesheets)
+      .set(timesheet)
+      .where(eq(timesheets.id, id))
+      .returning();
+    return updatedTimesheet;
+  }
+
+  async createInvoice(invoice: InsertInvoice, timesheetIds: number[]): Promise<Invoice> {
+    // Validate timesheetIds input
+    if (!timesheetIds || !Array.isArray(timesheetIds) || timesheetIds.length === 0) {
+      console.log('Invalid timesheetIds:', timesheetIds);
+      throw new Error("No timesheets selected for invoice generation");
+    }
+
+    console.log('Creating invoice with timesheetIds:', timesheetIds);
+
+    // Check if any of the timesheets are already invoiced
+    for (const timesheetId of timesheetIds) {
+      const [timesheet] = await db
+        .select()
+        .from(timesheets)
+        .where(eq(timesheets.id, timesheetId));
+
+      if (!timesheet) {
+        console.log(`Timesheet not found: ${timesheetId}`);
+        throw new Error(`Timesheet with ID ${timesheetId} not found`);
+      }
+
+      if (timesheet.status !== "approved") {
+        console.log(`Invalid timesheet status: ${timesheet.status} for timesheet ${timesheetId}`);
+        throw new Error(
+          `Timesheet ${timesheet.referenceNumber} must be approved before invoicing.`,
+        );
+      }
+
+      if (timesheet.status === "invoiced") {
+        console.log(`Timesheet already invoiced: ${timesheetId}`);
+        throw new Error(
+          `Timesheet ${timesheet.referenceNumber} is already invoiced.`,
+        );
+      }
+    }
+
+    // Function to generate reference number
+    const generateReference = async (attempt = 0): Promise<string> => {
+      const [lastInvoice] = await db
+        .select()
+        .from(invoices)
+        .orderBy(invoices.id, 'desc')
+        .limit(1);
+
+      const baseId = (lastInvoice?.id || 0) + 1;
+      const attemptId = baseId + attempt;
+      const referenceNumber = `INV-${attemptId.toString().padStart(6, '0')}`;
+
+      // Check if this reference number already exists
+      const [existing] = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.referenceNumber, referenceNumber));
+
+      if (existing) {
+        // If exists, try next number
+        return generateReference(attempt + 1);
+      }
+
+      return referenceNumber;
+    };
+
+    try {
+      const referenceNumber = await generateReference();
+      console.log('Creating invoice with reference number:', referenceNumber);
+
+      // Create invoice
+      const [newInvoice] = await db
+        .insert(invoices)
+        .values({
+          ...invoice,
+          referenceNumber,
+        })
+        .returning();
+
+      console.log('Created invoice:', newInvoice);
+
+      // Link timesheets to the invoice and mark them as invoiced
+      for (const timesheetId of timesheetIds) {
+        await db
+          .update(timesheets)
+          .set({
+            status: "invoiced",
+            invoiceId: newInvoice.id
+          })
+          .where(eq(timesheets.id, timesheetId));
+      }
+
+      return newInvoice;
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      throw new Error('Failed to create invoice with unique reference number');
+    }
+  }
+
+  async getInvoiceTimesheets(
+    invoiceId: number,
+  ): Promise<(Timesheet & { username: string })[]> {
+    const result = await db
+      .select({
+        id: timesheets.id,
+        userId: timesheets.userId,
+        referenceNumber: timesheets.referenceNumber,
+        weekStarting: timesheets.weekStarting,
+        dailyHours: timesheets.dailyHours,
+        totalHours: timesheets.totalHours,
+        status: timesheets.status,
+        notes: timesheets.notes,
+        username: users.username,
+      })
+      .from(invoiceTimesheets)
+      .leftJoin(timesheets, eq(invoiceTimesheets.timesheetId, timesheets.id))
+      .leftJoin(users, eq(timesheets.userId, users.id))
+      .where(eq(invoiceTimesheets.invoiceId, invoiceId));
+
+    return result.map((timesheet) => ({
+      ...timesheet,
+      username: timesheet.username || "Unknown User",
+    }));
+  }
+
+  async updateInvoice(id: number, update: Partial<Invoice>): Promise<Invoice> {
+    const [invoice] = await db
+      .update(invoices)
+      .set(update)
+      .where(eq(invoices.id, id))
+      .returning();
+    return invoice;
+  }
+
+  async listAllInvoices(): Promise<(Invoice & { username: string })[]> {
+    const result = await db
+      .select({
+        id: invoices.id,
+        referenceNumber: invoices.referenceNumber,
+        userId: invoices.userId,
+        subtotal: invoices.subtotal,
+        vatRate: invoices.vatRate,
+        cisRate: invoices.cisRate,
+        totalAmount: invoices.totalAmount,
+        normalHours: invoices.normalHours,
+        overtimeHours: invoices.overtimeHours,
+        normalRate: invoices.normalRate,
+        overtimeRate: invoices.overtimeRate,
+        status: invoices.status,
+        createdAt: invoices.createdAt,
+        notes: invoices.notes,
+        username: users.username,
+      })
+      .from(invoices)
+      .leftJoin(users, eq(invoices.userId, users.id));
+
+    return result.map((invoice) => ({
+      ...invoice,
+      username: invoice.username || "Unknown User",
+    }));
+  }
   async getTimesheet(id: number): Promise<Timesheet | undefined> {
-    const [timesheet] = await db.select().from(timesheets).where(eq(timesheets.id, id));
+    const [timesheet] = await db
+      .select()
+      .from(timesheets)
+      .where(eq(timesheets.id, id));
     return timesheet;
   }
 
@@ -160,15 +416,6 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(timesheets)
       .where(eq(timesheets.userId, userId));
-  }
-
-  async updateTimesheet(id: number, timesheet: Partial<Timesheet>): Promise<Timesheet> {
-    const [updatedTimesheet] = await db
-      .update(timesheets)
-      .set(timesheet)
-      .where(eq(timesheets.id, id))
-      .returning();
-    return updatedTimesheet;
   }
 
   async deleteTimesheet(id: number): Promise<void> {
@@ -181,7 +428,8 @@ export class DatabaseStorage implements IStorage {
         id: timesheets.id,
         userId: timesheets.userId,
         weekStarting: timesheets.weekStarting,
-        hours: timesheets.hours,
+        dailyHours: timesheets.dailyHours,
+        totalHours: timesheets.totalHours,
         status: timesheets.status,
         notes: timesheets.notes,
         username: users.username,
@@ -189,10 +437,28 @@ export class DatabaseStorage implements IStorage {
       .from(timesheets)
       .leftJoin(users, eq(timesheets.userId, users.id));
 
-    return sheets.map(sheet => ({
+    return sheets.map((sheet) => ({
       ...sheet,
-      username: sheet.username || 'Unknown User'
+      username: sheet.username || "Unknown User",
     }));
+  }
+  async deleteInvoice(id: number): Promise<void> {
+    // Find timesheets linked to this invoice before deleting
+    const relatedTimesheets = await db
+      .select()
+      .from(invoiceTimesheets)
+      .where(eq(invoiceTimesheets.invoiceId, id));
+
+    // Update timesheet status back to approved
+    for (const relation of relatedTimesheets) {
+      await db
+        .update(timesheets)
+        .set({ status: "approved" })
+        .where(eq(timesheets.id, relation.timesheetId));
+    }
+
+    // Delete invoice and related records (cascade will handle invoice_timesheets)
+    await db.delete(invoices).where(eq(invoices.id, id));
   }
 }
 
