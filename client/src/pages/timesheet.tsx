@@ -168,7 +168,9 @@ function TimesheetList({
   const filteredTimesheets = timesheets
     .filter(timesheet => {
       if (!searchQuery.trim()) return true;
-      return timesheet.username.toLowerCase().includes(searchQuery.toLowerCase());
+      return (
+        timesheet.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        timesheet.referenceNumber.toLowerCase().includes(searchQuery.toLowerCase()));
     })
     .sort((a, b) => {
       // Sort by weekStarting in descending order (newest first)
@@ -201,7 +203,7 @@ function TimesheetList({
             <SearchInput
               value={searchQuery}
               onChange={setSearchQuery}
-              placeholder="Search employee..."
+              placeholder="Search timesheets..."
             />
           </div>
         )}
@@ -224,6 +226,7 @@ function TimesheetList({
         <Table>
           <TableHeader>
             <TableRow>
+            <TableHead className="min-w-[180px]">Name</TableHead>
               <TableHead className="min-w-[180px]">Week Range</TableHead>
               <TableHead>Total Hours</TableHead>
               {user?.role === "admin" && (
@@ -277,13 +280,20 @@ function TimesheetList({
                   }}
                 >
                   <TableCell>
+                  <div className="flex flex-col">
+                    <span className="whitespace-nowrap"> 
+                    {timesheet.referenceNumber}
+                    </span>
+                  </div>
+                  </TableCell>
+                  <TableCell>
                     <div>
                       <div className="flex flex-col">
                         <span className="whitespace-nowrap">
                           {weekRange.start}
                         </span>
                         <span className="text-sm text-muted-foreground">
-                          to {weekRange.end}
+                          {weekRange.end}
                         </span>
                       </div>
                     </div>

@@ -426,6 +426,7 @@ export class DatabaseStorage implements IStorage {
     const sheets = await db
       .select({
         id: timesheets.id,
+        referenceNumber: timesheets.referenceNumber,
         userId: timesheets.userId,
         weekStarting: timesheets.weekStarting,
         dailyHours: timesheets.dailyHours,
