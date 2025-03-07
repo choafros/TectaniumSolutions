@@ -40,7 +40,7 @@ export const timesheets = pgTable("timesheets", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   weekStarting: timestamp("week_starting").notNull(),
   dailyHours: jsonb("daily_hours").notNull(),
-  totalHours: integer("total_hours").notNull(),
+  totalHours: decimal("total_hours").notNull(),
   status: text("status", { enum: ["draft", "pending", "approved", "rejected", "invoiced"] }).default("draft"), // Added invoiced status
   notes: text("notes"),
 });

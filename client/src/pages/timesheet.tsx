@@ -47,7 +47,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { useState, useEffect } from "react";
 import { SearchInput } from "@/components/ui/search";
 

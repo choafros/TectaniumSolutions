@@ -114,6 +114,19 @@ export class DatabaseStorage implements IStorage {
     // Cascading delete will handle related records
     await db.delete(users).where(eq(users.id, id));
   }
+  
+  async updateUserActiveStatus(userId: number, active: boolean): Promise<void> {
+    try {
+      await db
+        .update(users)
+        .set({ active })
+        .where(eq(users.id, userId))
+        .execute();
+    } catch (error) {
+      console.error('Error updating user active status:', error);
+      throw new Error(`Failed to update user status: ${error.message}`);
+    }
+  }
 
   async getCompany(id: number): Promise<Company | undefined> {
     const [company] = await db
@@ -195,6 +208,8 @@ export class DatabaseStorage implements IStorage {
         .from(timesheets)
         .orderBy(timesheets.id, 'desc')
         .limit(1);
+      
+        console.log('lastTimesheet: ', lastTimesheet);
 
       const baseId = (lastTimesheet?.id || 0) + 1;
       const attemptId = baseId + attempt;

@@ -1,51 +1,40 @@
-import { useAuth } from "@/hooks/use-auth";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import DashboardLayout from "@/components/dashboard-layout";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import React from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { Table, TableHeader, TableRow, TableHead } from "@/components/ui/table";
+import { PaginatedUserList } from "@/components/PaginatedUserList";
+import DashboardLayout from "@/components/dashboard-layout";
 import type { User } from "@shared/schema";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Badge } from "@/components/ui/badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Loader2 } from "lucide-react";
 
 export default function UsersPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
+  // Fetch users using the requested useQuery structure
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
     enabled: user?.role === "admin",
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/users");
+      return res.json();
+    },
   });
 
+  // Update user active status
   const updateUser = useMutation({
-    mutationFn: async ({
-      id,
-      active,
-    }: {
-      id: number;
-      active: boolean;
-    }) => {
+    mutationFn: async ({ id, active }: { id: number; active: boolean }) => {
       const res = await apiRequest("PATCH", `/api/users/${id}`, { active });
-      return res.json();
+
+      if (res.ok) {
+        return { success: true };
+      }
+
+      const errorData = await res.json();
+      throw new Error(errorData.message || "Failed to update user");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
@@ -63,6 +52,7 @@ export default function UsersPage() {
     },
   });
 
+  // Delete user
   const deleteUser = useMutation({
     mutationFn: async (id: number) => {
       await apiRequest("DELETE", `/api/users/${id}`);
@@ -83,10 +73,6 @@ export default function UsersPage() {
     },
   });
 
-  if (user?.role !== "admin") {
-    return <div>Unauthorized</div>;
-  }
-
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -99,14 +85,9 @@ export default function UsersPage() {
 
   return (
     <DashboardLayout>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">User Management</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage user accounts and access
-        </p>
-      </div>
+      <div className="container mx-auto py-10">
+        <h1 className="text-2xl font-bold mb-6">User Management</h1>
 
-      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -114,79 +95,17 @@ export default function UsersPage() {
               <TableHead>Role</TableHead>
               <TableHead>Organization</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="whitespace-nowrap">Actions</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {users?.map((listUser) => (
-              <TableRow key={listUser.id}>
-                <TableCell>{listUser.username}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="capitalize">
-                    {listUser.role}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {listUser.companyId ? `Organization #${listUser.companyId}` : "-"}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={listUser.active ? "default" : "destructive"}
-                  >
-                    {listUser.active ? "Active" : "Inactive"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        updateUser.mutate({
-                          id: listUser.id,
-                          active: !listUser.active,
-                        })
-                      }
-                      disabled={updateUser.isPending}
-                    >
-                      {listUser.active ? "Deactivate" : "Activate"}
-                    </Button>
 
-                    {listUser.id !== user.id && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete User</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete {listUser.username}? This action cannot be undone.
-                              All associated timesheets and documents will also be deleted.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteUser.mutate(listUser.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
+          <PaginatedUserList 
+            users={users || []} 
+            currentUser={user} 
+            updateUser={updateUser}
+            deleteUser={deleteUser}
+            pageSize={5}
+          />
         </Table>
       </div>
     </DashboardLayout>

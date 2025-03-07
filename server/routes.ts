@@ -2,9 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
-import { db, users, companies, documents, timesheets } from "./db";
+import { db, users, companies, documents, timesheets, invoiceTimesheets } from "./db";
 import { eq, and } from "drizzle-orm";
-
 // In-memory settings storage for now
 let workSettings = {
   normalStartTime: "09:00",
@@ -227,6 +226,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+  
+      const userId = parseInt(req.params.id);
+      const { active } = req.body;
+  
+      // Validate that active is a boolean
+      if (typeof active !== "boolean") {
+        return res.status(400).json({ message: "Active status must be a boolean" });
+      }
+  
+      // Update the user's active status
+      await storage.updateUserActiveStatus(userId, active);
+      return res.status(200).json({ success: true });
+
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   // Invoices
   app.post("/api/invoices", async (req, res) => {
     try {
@@ -289,7 +309,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!invoiceId || isNaN(invoiceId)) {
         return res.status(400).json({ message: "Invalid invoice ID" });
       }
-
       // Get all timesheets linked to this invoice with username
       const linkedTimesheets = await db
         .select({
@@ -304,18 +323,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           username: users.username,
         })
         .from(timesheets)
-        .leftJoin(users, eq(timesheets.userId, users.id))
-        .where(eq(timesheets.invoiceId, invoiceId));
+        .innerJoin(invoiceTimesheets, eq(invoiceTimesheets.timesheetId, timesheets.id))
+        .innerJoin(users, eq(users.id, timesheets.userId))
+        .where(eq(invoiceTimesheets.invoiceId, invoiceId));
 
-      console.log("Found linked timesheets:", linkedTimesheets);
+        console.log("Found linked timesheets:", linkedTimesheets);
 
-      // Map the results to ensure all fields are present
-      const formattedTimesheets = linkedTimesheets.map((timesheet) => ({
-        ...timesheet,
-        username: timesheet.username || "Unknown User",
-      }));
+        // Map the results to ensure all fields are present
+        const formattedTimesheets = linkedTimesheets.map((timesheet) => ({
+          ...timesheet,
+          username: timesheet.username || "Unknown User",
+        }));
 
       res.json(formattedTimesheets);
+
     } catch (error: any) {
       console.error("Error fetching linked timesheets:", error.message);
       res.status(500).json({ message: "Internal server error" });
