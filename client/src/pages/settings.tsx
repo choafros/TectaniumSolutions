@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Form,
   FormControl,
@@ -160,7 +159,7 @@ export default function SettingsPage() {
                     )}
                   />
                 </div>
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="normalRate"
                   render={({ field }) => (
@@ -174,7 +173,7 @@ export default function SettingsPage() {
                       </FormDescription>
                     </FormItem>
                   )}
-                />
+                /> */}
               </CardContent>
             </Card>
 
@@ -212,7 +211,7 @@ export default function SettingsPage() {
                     )}
                   />
                 </div>
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="overtimeRate"
                   render={({ field }) => (
@@ -226,7 +225,7 @@ export default function SettingsPage() {
                       </FormDescription>
                     </FormItem>
                   )}
-                />
+                /> */}
               </CardContent>
             </Card>
 

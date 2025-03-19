@@ -9,10 +9,11 @@ import HomePage from "@/pages/home-page";
 import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
 import Timesheet from "@/pages/timesheet";
+import Projects from "@/pages/projects";
 import Documents from "@/pages/documents";
 import Users from "@/pages/users";
 import Settings from "@/pages/settings";
-import InvoicesPage from "@/pages/invoices"; // Import the new component
+import InvoicesPage from "@/pages/invoices";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/" component={HomePage} />
       <Route path="/auth" component={AuthPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
+      <ProtectedRoute path="/projects" component={Projects} />
       <ProtectedRoute path="/timesheet" component={Timesheet} />
       <ProtectedRoute path="/documents" component={Documents} />
       <ProtectedRoute path="/users" component={Users} />

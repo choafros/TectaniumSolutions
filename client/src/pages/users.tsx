@@ -51,6 +51,34 @@ export default function UsersPage() {
       });
     },
   });
+  // update user rates
+  const updateRates = useMutation({
+    mutationFn: async ({ id, normalRate, overtimeRate }: { id: number; normalRate: number; overtimeRate: number }) => {
+      const res = await apiRequest("PATCH", `/api/users/${id}/rates`, { normalRate, overtimeRate });
+  
+      if (res.ok) {
+        return { success: true };
+      }
+  
+      const errorData = await res.json();
+      throw new Error(errorData.message || "Failed to update user rates");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({
+        title: "Success",
+        description: "User rates updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
 
   // Delete user
   const deleteUser = useMutation({
@@ -94,6 +122,9 @@ export default function UsersPage() {
               <TableHead>Username</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Organization</TableHead>
+              <TableHead>Hourly Rate</TableHead>
+              <TableHead>Overtime Rate</TableHead>
+              <TableHead>Save Changes</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -103,6 +134,7 @@ export default function UsersPage() {
             users={users || []} 
             currentUser={user} 
             updateUser={updateUser}
+            updateRates={updateRates}
             deleteUser={deleteUser}
             pageSize={5}
           />

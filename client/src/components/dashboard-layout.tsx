@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Clock,
   FileText,
+  FolderKanban,
   Users,
   Building2,
   LogOut,
@@ -15,6 +16,7 @@ import {
   Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Kanban } from "lucide-react";
 
 type SidebarItem = {
   icon: React.ElementType;
@@ -28,6 +30,12 @@ const sidebarItems: SidebarItem[] = [
     icon: LayoutDashboard,
     label: "Dashboard",
     href: "/dashboard",
+  },
+  {
+    icon: FolderKanban,
+    label: "Projects",
+    href: "/projects",
+    roles: ["candidate", "admin"],
   },
   {
     icon: Clock,

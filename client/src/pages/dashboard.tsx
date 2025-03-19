@@ -12,15 +12,6 @@ import {
 import DashboardLayout from "@/components/dashboard-layout";
 import { Calendar, FileText, Building2, Users, Bell } from "lucide-react";
 import type { Company, Document, Timesheet } from "@shared/schema";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { format } from "date-fns";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -63,7 +54,7 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Welcome back, {user?.username}</h1>
+        <h1 className="text-3xl font-bold">Welcome, {user?.username}</h1>
         <p className="text-muted-foreground mt-2">
           {user?.role === "admin"
             ? "Manage your organization's resources and approvals"

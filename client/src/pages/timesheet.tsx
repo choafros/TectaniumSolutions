@@ -12,11 +12,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle, XCircle, Clock, RefreshCw, Trash2, PencilLine, MoreHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Clock, RefreshCw, Trash2, PencilLine, MoreHorizontal, ChevronLeft, ChevronRight, ScrollText} from "lucide-react";
 import type { Timesheet, DailyHours } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, startOfWeek, endOfWeek, isMonday, addDays, getWeek } from "date-fns";
-import { useForm } from "react-hook-form";
+import { Control, useForm } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -61,8 +61,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { calculateNormalAndOvertimeHours } from "@/lib/timesheet-utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Add the getWeekRange function back near the top of the file
 // Add utility function for date range display
 function getWeekRange(date: Date) {
   const weekStart = startOfWeek(date, { weekStartsOn: 1 });
@@ -79,13 +79,18 @@ type User = {
   role?: "admin" | "candidate";
 };
 
-type TimesheetWithUser = Timesheet & { username: string };
+type TimesheetWithUser = Timesheet & { 
+  username: string;
+  projectId: number; // Making sure this is explicitly typed
+  projectName: string;
+};
 
 const statusIcons = {
   draft: <Clock className="h-5 w-5 text-blue-500" />,
   pending: <Clock className="h-5 w-5 text-yellow-500" />,
   approved: <CheckCircle className="h-5 w-5 text-green-500" />,
   rejected: <XCircle className="h-5 w-5 text-red-500" />,
+  invoiced: <ScrollText className="h-5 w-5 text-blue-500" />,
 } as const;
 
 const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
@@ -99,6 +104,7 @@ const timeSlotSchema = z.object({
 });
 
 const TimesheetFormSchema = z.object({
+  projectId: z.number().min(1, "Project is required"),
   weekStarting: z.string().refine((date) => {
     const selectedDate = new Date(date);
     const today = new Date();
@@ -127,8 +133,55 @@ function TimesheetHeader() {
     </Card>
   );
 }
-
-
+  // Add project selection to the form
+  function ProjectSelector({ control }: { control: Control<TimesheetFormData> }) {
+    const { data: projects = [] } = useQuery({
+      queryKey: ["/api/projects"],
+      queryFn: async () => {
+        const res = await apiRequest("GET", "/api/projects");
+        return res.json();
+      },
+    });
+  
+    return (
+      <FormField
+        control={control}
+        name="projectId"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Project</FormLabel>
+            <Select
+              onValueChange={(value) => field.onChange(Number(value))} // Convert to number
+              value={field.value?.toString()}
+              disabled={projects.length === 0}
+            >
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem
+                    key={project.id}
+                    value={project.id.toString()} // Store as string
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>{project.name}</span>
+                      <span className="text-muted-foreground text-sm">
+                        ({project.location})
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    );
+  }
 function TimesheetList({
   timesheets,
   heading,
@@ -226,7 +279,8 @@ function TimesheetList({
         <Table>
           <TableHeader>
             <TableRow>
-            <TableHead className="min-w-[180px]">Name</TableHead>
+              <TableHead className="min-w-[180px]">Project</TableHead>
+              <TableHead className="min-w-[180px]">Name</TableHead>
               <TableHead className="min-w-[180px]">Week Range</TableHead>
               <TableHead>Total Hours</TableHead>
               {user?.role === "admin" && (
@@ -248,9 +302,9 @@ function TimesheetList({
           </TableHeader>
           <TableBody>
             {paginatedTimesheets.map((timesheet) => {
+
               // Calculate week range
               const weekRange = getWeekRange(new Date(timesheet.weekStarting));
-
               // Calculate normal and overtime hours for admin view
               let totalNormalHours = 0;
               let totalOvertimeHours = 0;
@@ -263,9 +317,14 @@ function TimesheetList({
                   totalOvertimeHours += overtimeHours;
                 });
 
-                totalCost = (totalNormalHours * parseFloat(settings.normalRate)) +
-                           (totalOvertimeHours * parseFloat(settings.overtimeRate));
+                // Ensure rates are valid numbers
+                const normalRate = parseFloat(timesheet.normalRate) || 0;
+                const overtimeRate = parseFloat(timesheet.overtimeRate) || 0;
+
+                totalCost = (totalNormalHours * normalRate) + (totalOvertimeHours * overtimeRate);
+
               }
+              const totalHours = Number(timesheet.totalHours) || 0;
 
               return (
                 <TableRow
@@ -279,6 +338,20 @@ function TimesheetList({
                     }
                   }}
                 >
+                  <TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="whitespace-nowrap">
+                        {timesheet.projectName}
+                        </span>
+
+                        {timesheet.projectId > 0 && (
+                          <span className="text-xs text-muted-foreground">ID: {timesheet.projectId}</span>
+                        )}
+
+                    </div>
+                  </TableCell>
+                  </TableCell>
                   <TableCell>
                   <div className="flex flex-col">
                     <span className="whitespace-nowrap"> 
@@ -298,12 +371,15 @@ function TimesheetList({
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>{timesheet.totalHours}</TableCell>
+                  <TableCell>{totalHours.toFixed(2)}</TableCell>
+                  
                   {user?.role === "admin" && (
+                    
                     <>
                       <TableCell>{totalNormalHours.toFixed(2)}</TableCell>
                       <TableCell>{totalOvertimeHours.toFixed(2)}</TableCell>
-                      <TableCell>£{totalCost.toFixed(2)}</TableCell>
+                      <TableCell>{totalCost}</TableCell> {/* Fixed Calculation */}
+
                     </>
                   )}
                   <TableCell className="whitespace-nowrap">
@@ -449,6 +525,7 @@ function TimesheetList({
 }
 
 function TimesheetPage() {
+
   const { user } = useAuth();
   const { toast } = useToast();
   const [selectedTimesheet, setSelectedTimesheet] = useState<TimesheetWithUser | null>(null);
@@ -463,15 +540,57 @@ function TimesheetPage() {
   const form = useForm<TimesheetFormData>({
     resolver: zodResolver(TimesheetFormSchema),
     defaultValues: {
+      projectId: -1, // Default invalid ID
       weekStarting: format(monday, "yyyy-MM-dd"),
       dailyHours: defaultDailyHours,
     },
   });
 
+  // fetch timesheets data
   const { data: timesheets = [], isLoading, refetch } = useQuery<TimesheetWithUser[]>({
+    
     queryKey: ["/api/timesheets"],
-    staleTime: 0,
-    gcTime: 0,
+    queryFn: async () => {
+
+      const response = await fetch("/api/timesheets");
+      if (!response.ok) { throw new Error("Failed to fetch timesheets!");  }
+
+      let timesheetData = await response.json();
+      console.log("Raw timesheet data:", timesheetData);
+
+      // Fetch projects to get project names
+      const projectsResponse = await apiRequest("GET", "/api/projects");
+      if (!projectsResponse.ok) { throw new Error("Failed to fetch projects!"); }
+      const projects = await projectsResponse.json();
+      console.log('projects: ', projects);
+
+      // Create a map of project IDs to project names
+      const projectMap = projects.reduce((acc, project) => {
+        acc[project.id] = project.name;
+        return acc;
+      }, {});
+      console.log('projectMap: ', projectMap);
+
+      // Add project names to timesheets
+    const enhancedTimesheets = timesheetData.map(timesheet => {
+      // Check if projectId exists and is a valid number
+      const projectId = timesheet.projectId;
+      const projectName = projectId && projectMap[projectId] 
+        ? projectMap[projectId] 
+        : "No Project Assigned";
+      
+      return {
+          ...timesheet,
+          projectId: projectId || 0,
+          projectName: projectName,
+        };
+      });
+      console.log('enhancedTimesheets: ', enhancedTimesheets)
+      return enhancedTimesheets;
+
+    },
+    staleTime: 1000 * 60 * 5,  // Cache data for 5 minutes
+    cacheTime: 1000 * 60 * 15, // Data remains in cache for 15 minutes
   });
 
   const populateForm = (timesheet: Timesheet) => {
@@ -500,12 +619,14 @@ function TimesheetPage() {
 
   const saveTimesheet = useMutation({
     mutationFn: async (data: TimesheetFormData) => {
+
       const totalHours = calculateTotalHours(data.dailyHours);
       const res = await apiRequest("POST", "/api/timesheets", {
         weekStarting: new Date(data.weekStarting).toISOString(),
         dailyHours: data.dailyHours,
         totalHours,
         status: "draft",
+        projectId: data.projectId
       });
       return res.json();
     },
@@ -557,6 +678,9 @@ function TimesheetPage() {
       status?: "approved" | "rejected" | "pending";
       dailyHours?: DailyHours;
     }) => {
+      
+      console.log('updateTimesheet: dailyHours: ', dailyHours)
+
       const payload: any = {};
       if (status) payload.status = status;
       if (dailyHours) {
@@ -655,7 +779,9 @@ function TimesheetPage() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => refetch()}
+            onClick={async () => {
+              await queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] }); // Efficiently refresh cache
+            }}
             className="h-10 w-10"
             disabled={isLoading}
           >
@@ -688,6 +814,8 @@ function TimesheetPage() {
                   </FormItem>
                 )}
               />
+              
+              <ProjectSelector control={form.control} />
 
               <div className="space-y-6">
                 <h3 className="font-medium">Daily Hours</h3>
@@ -956,5 +1084,6 @@ function calculateTotalHours(dailyHours: DailyHours) {
     return total + (hours > 0 ? hours : 0);
   }, 0);
 }
+
 
 export default TimesheetPage;

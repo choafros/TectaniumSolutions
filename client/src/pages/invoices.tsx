@@ -76,8 +76,8 @@ const VAT_RATES = [
 
 const CIS_RATES = [
   { label: "No CIS", value: "0" },
-  { label: "20% CIS", value: "20" },
-  { label: "30% CIS", value: "30" },
+  { label: "Default (20%)", value: "20" },
+  { label: "Higher (30%)", value: "30" },
 ];
 
 function calculateInvoiceTotal(
@@ -102,7 +102,9 @@ export default function InvoicesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<number | null>(null);
-  const [selectedTimesheets, setSelectedTimesheets] = useState<number[]>([]);
+  const [selectedTimesheets, setSelectedTimesheets] = useState<Timesheet []>([]);
+  const [userTotal, setUserTotal] = useState(0);
+
 
   const { data: users = [], isLoading: loadingUsers } = useQuery({
     queryKey: ["/api/users"],
@@ -211,15 +213,11 @@ export default function InvoicesPage() {
     },
   });
 
-  const { data: linkedTimesheets = [], isLoading: loadingTimesheets } =
-    useQuery({
+  const { data: linkedTimesheets = [], isLoading: loadingTimesheets } = useQuery({
       queryKey: ["/api/invoices", selectedInvoice?.id, "timesheets"],
       queryFn: async () => {
         if (!selectedInvoice?.id) return [];
-        const res = await apiRequest(
-          "GET",
-          `/api/invoices/${selectedInvoice.id}/timesheets`,
-        );
+        const res = await apiRequest( "GET", `/api/invoices/${selectedInvoice.id}/timesheets`,);
         const data = await res.json();
         console.log("Fetched timesheets:", data); // Debug log
         return data;
@@ -230,7 +228,7 @@ export default function InvoicesPage() {
   if (!user || user.role !== "admin") {
     return (
       <DashboardLayout>
-        <div>Not authorized</div>
+        <div>Coming soon...</div>
       </DashboardLayout>
     );
   }
@@ -268,65 +266,42 @@ export default function InvoicesPage() {
     });
   };
 
-  const calculateUserTotal = (timesheetIds: number[]) => {
-    if (!Array.isArray(timesheets) || timesheetIds.length === 0) {
-      return {
-        subtotal: 0,
-        normalHours: 0,
-        overtimeHours: 0,
-        normalRate: settings ? toNumber(settings.normalRate) : 20,
-        overtimeRate: settings ? toNumber(settings.overtimeRate) : 35,
-      };
-    }
+  // Calculate total based on timesheets data
+  const calculateUserTotal = (selectedTimesheets: Timesheet[]) => {
 
     let totalNormalHours = 0;
     let totalOvertimeHours = 0;
-
-    const selectedTimesheets = timesheets.filter((t) =>
-      timesheetIds.includes(t.id),
-    );
+    let subtotal = 0;
 
     selectedTimesheets.forEach((timesheet) => {
-      if (timesheet.dailyHours && typeof timesheet.dailyHours === "object") {
-        Object.values(timesheet.dailyHours).forEach((hours) => {
-          if (
-            hours &&
-            typeof hours === "object" &&
-            "start" in hours &&
-            "end" in hours
-          ) {
-            const { normalHours, overtimeHours } =
-              calculateNormalAndOvertimeHours(
-                hours,
-                settings || {
-                  normalStartTime: "09:00",
-                  normalEndTime: "17:00",
-                  overtimeEndTime: "22:00",
-                },
-              );
-            totalNormalHours += normalHours;
-            totalOvertimeHours += overtimeHours;
-          }
-        });
-      }
+      // Use stored values from timesheet; these can be strings so we convert them
+       let normalHours = toNumber(timesheet.normalHours);
+       let overtimeHours = toNumber(timesheet.overtimeHours);
+       let normalRate = toNumber(timesheet.normalRate);
+       let overtimeRate = toNumber(timesheet.overtimeRate);
+
+      normalRate = toNumber(timesheet.normalRate);
+      overtimeRate = toNumber(timesheet.overtimeRate);
+
+      totalNormalHours += normalHours;
+      totalOvertimeHours += overtimeHours;
+
+      subtotal += (normalHours * normalRate) + (overtimeHours * overtimeRate)
     });
-
-    const normalRate = settings ? toNumber(settings.normalRate) : 20;
-    const overtimeRate = settings ? toNumber(settings.overtimeRate) : 35;
-
-    const subtotal =
-      totalNormalHours * normalRate + totalOvertimeHours * overtimeRate;
+  
+    console.log('calculateUserTotal: ', subtotal, totalNormalHours, totalOvertimeHours);
+    
     return {
       subtotal,
       normalHours: totalNormalHours,
       overtimeHours: totalOvertimeHours,
-      normalRate,
-      overtimeRate,
     };
   };
 
   const handleCreateInvoice = () => {
+
     console.log("Selected timesheets:", selectedTimesheets);
+
     if (!selectedUser || selectedTimesheets.length === 0) {
       toast({
         title: "Error",
@@ -335,11 +310,14 @@ export default function InvoicesPage() {
       });
       return;
     }
+    // Calculate totals from selected timesheets
+    const { subtotal, normalHours, overtimeHours} = calculateUserTotal(selectedTimesheets);
 
-    const { subtotal, normalHours, overtimeHours, normalRate, overtimeRate } =
-      calculateUserTotal(selectedTimesheets);
+    // Fetch user rate, either store them in timesheets or get users, what if users rate chage?
+    // Just default ot 0.00 for now
 
     const invoiceData = {
+
       userId: parseInt(selectedUser),
       subtotal,
       vatRate: parseFloat(vatRate),
@@ -351,9 +329,11 @@ export default function InvoicesPage() {
       ),
       normalHours,
       overtimeHours,
-      normalRate,
-      overtimeRate,
-      timesheetIds: selectedTimesheets,
+      // normalRate,
+      // overtimeRate,
+
+      // Map the full Timesheet objects to extract only their IDs for submission
+      timesheetIds: selectedTimesheets.map((ts) => ts.id),
     };
 
     console.log("Submitting invoice data:", invoiceData);
@@ -383,13 +363,14 @@ export default function InvoicesPage() {
             <div className="grid gap-4 md:grid-cols-4">
               <div>
                 <label className="text-sm font-medium">Select User</label>
+                { /* User select as shown above */ }
                 <Select
                   value={selectedUser}
                   onValueChange={(value) => {
                     setSelectedUser(value);
                     const userId = parseInt(value);
                     const approvedTimesheets = getApprovedTimesheets(userId);
-                    setSelectedTimesheets(approvedTimesheets.map((t) => t.id));
+                    setSelectedTimesheets(approvedTimesheets);
                   }}
                 >
                   <SelectTrigger>
@@ -404,6 +385,7 @@ export default function InvoicesPage() {
                   </SelectContent>
                 </Select>
               </div>
+
               <div>
                 <label className="text-sm font-medium">VAT Rate</label>
                 <Select value={vatRate} onValueChange={setVatRate}>
@@ -463,17 +445,19 @@ export default function InvoicesPage() {
                   <div className="space-y-2">
                     {getApprovedTimesheets(parseInt(selectedUser)).map(
                       (timesheet) => (
-                        <div
+                        <div 
                           key={timesheet.id}
-                          className="flex items-center space-x-2"
-                        >
+                          className="flex items-center space-x-2">
                           <Checkbox
-                            checked={selectedTimesheets.includes(timesheet.id)}
+                            
+                            // Check if this timesheet is already in the selectedTimesheets array
+                            checked={selectedTimesheets.some((ts) => ts.id === timesheet.id)}
+
                             onCheckedChange={(checked) => {
                               setSelectedTimesheets((prev) =>
                                 checked
-                                  ? [...prev, timesheet.id]
-                                  : prev.filter((id) => id !== timesheet.id),
+                                  ? [...prev, timesheet]
+                                  : prev.filter((ts) => ts.id !== timesheet.id),
                               );
                             }}
                           />
@@ -501,8 +485,10 @@ export default function InvoicesPage() {
                       normalRate,
                       overtimeRate,
                     } = calculateUserTotal(selectedTimesheets);
+
                     const vatAmount = subtotal * (parseFloat(vatRate) / 100);
                     const cisAmount = subtotal * (parseFloat(cisRate) / 100);
+
                     const total = calculateInvoiceTotal(
                       subtotal,
                       parseFloat(vatRate),

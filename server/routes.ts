@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
 import { db, users, companies, documents, timesheets, invoiceTimesheets } from "./db";
 import { eq, and } from "drizzle-orm";
+import { calculateNormalAndOvertimeHours} from "../client/src/lib/timesheet-utils"
 // In-memory settings storage for now
 let workSettings = {
   normalStartTime: "09:00",
@@ -88,67 +89,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Timesheets
   app.post("/api/timesheets", async (req, res) => {
+
     try {
+
       if (!req.user) return res.sendStatus(401);
 
       const weekStarting = new Date(req.body.weekStarting);
       if (isNaN(weekStarting.getTime())) {
         throw new Error("Invalid date format");
       }
+      
+      // Add project validation
+      if (!req.body.projectId) {
+        return res.status(400).json({ message: "Project is required" });
+      }
+
+      // Check project exists
+      const project = await storage.getProject(req.body.projectId);
+      if (!project) return res.status(400).json({ message: "Invalid project" });
+      
+      // Get user's hourly rate
+      const user = await storage.getUserById(req.user.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
 
       // Check if timesheet exists for this specific user and week
       const userTimesheets = await storage.getUserTimesheets(req.user.id);
       const existingTimesheet = userTimesheets.find(
-        (t) =>
-          new Date(t.weekStarting).toISOString().split("T")[0] ===
+        (t) => new Date(t.weekStarting).toISOString().split("T")[0] ===
           weekStarting.toISOString().split("T")[0],
       );
 
+      const { normalRate, overtimeRate } = user;
+      console.log('user::normalRate: ', normalRate);
+      console.log('user::overtimeRate: ', overtimeRate);
+
+      // Calculate hour breakdown
+      let totalNormalHours = 0;
+      let totalOvertimeHours = 0;
+      
+      // Calculate total normal and overtime hours
+      Object.values(req.body.dailyHours).forEach((dayHours) => {
+
+        const { normalHours, overtimeHours } = calculateNormalAndOvertimeHours(
+          dayHours,
+          {
+            normalStartTime: "09:00",
+            normalEndTime: "17:00",
+            overtimeEndTime: "22:00",
+          }        
+        );
+        totalNormalHours += normalHours;
+        totalOvertimeHours += overtimeHours;
+      });
+
+      const totalCost =
+        totalNormalHours * parseFloat(normalRate) +
+        totalOvertimeHours * parseFloat(overtimeRate);
+      console.log('totalCost: ', totalCost);
+
+      let timesheet;
       if (existingTimesheet) {
+
         if (existingTimesheet.status !== "rejected") {
           throw new Error(
             "You have already submitted a timesheet for this week",
           );
         }
+
         // If timesheet was rejected, update it instead of creating new
-        const updatedTimesheet = await storage.updateTimesheet(
+        timesheet = await storage.updateTimesheet(
           existingTimesheet.id,
           {
             dailyHours: req.body.dailyHours,
-            totalHours: req.body.totalHours,
+            totalHours: String(totalNormalHours + totalOvertimeHours),
+            normalHours: String(totalNormalHours),
+            normalRate: String(user.normalRate),
+            overtimeHours: String(totalOvertimeHours),
+            overtimeRate: String(user.overtimeRate),
+            totalCost: String(totalCost),
             status: req.body.status || "draft",
+            projectId: req.body.projectId,
           },
         );
-        return res.json(updatedTimesheet);
+        
+        return res.json(timesheet);
+
+      } else {
+
+        timesheet = await storage.createTimesheet({
+          referenceNumber: '',
+          userId: req.user.id,
+          weekStarting,
+          dailyHours: req.body.dailyHours,
+          totalHours: String(totalNormalHours + totalOvertimeHours),
+          normalHours: String(totalNormalHours),
+          normalRate: String(user.normalRate),
+          overtimeHours: String(totalOvertimeHours),
+          overtimeRate: String(user.overtimeRate),
+          totalCost: String(totalCost),
+          projectId: req.body.projectId,
+          status: req.body.status || "draft",
+        });
+        console.log(timesheet);
+        res.status(201).json(timesheet);
       }
 
-      const timesheet = await storage.createTimesheet({
-        userId: req.user.id,
-        weekStarting,
-        dailyHours: req.body.dailyHours,
-        totalHours: req.body.totalHours,
-        status: req.body.status || "draft",
-      });
-
-      res.status(201).json(timesheet);
+      // Finally, Update project total hours
+      await storage.updateProjectHours(req.body.projectId);
+      
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
   });
 
   app.get("/api/timesheets", async (req, res) => {
+
     try {
       if (!req.user) return res.sendStatus(401);
 
+      let timesheets;
+
       if (req.user.role === "admin") {
         // Admin sees all timesheets with usernames
-        const timesheets = await storage.listAllTimesheets();
-        res.json(timesheets);
+        timesheets = await storage.listAllTimesheets();
       } else {
         // Users only see their own timesheets
-        const timesheets = await storage.getUserTimesheets(req.user.id);
-        res.json(timesheets);
+        timesheets = await storage.getUserTimesheets(req.user.id);
       }
+      console.log('217:res: ',timesheets)
+      res.json(timesheets);
+
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -176,12 +246,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
+      let totalNormalHours = 0;
+      let totalOvertimeHours = 0;
+    
+      // Recalculate values to ensure accuracy
+      const user = await storage.getUserById(timesheet.userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      const { normalRate, overtimeRate } = user;
+
+      const transformDailyHours = (dailyHours: Record<string, { start: string; end: string }>) => {
+        return Object.values(dailyHours).map(({ start, end }) => ({
+            normalHours: start && end ? `${start}-${end}` : "",
+            overtimeHours: ""  // Leave empty as your logic already calculates overtime
+        }));
+      };
+
+      console.log('timesheet.dailyHours: ', timesheet.dailyHours);
+    
+      // Calculate total normal and overtime hours
+      Object.entries(timesheet.dailyHours).forEach(([day, hours]) => {
+        if (!hours || !hours.start || !hours.end) {
+          console.log(`Skipping ${day} due to empty hours`);
+          return; // Skip days with empty values
+        }
+        const { normalHours, overtimeHours } = calculateNormalAndOvertimeHours(
+            hours, // Now this correctly passes { start: "09:00", end: "17:00" }
+            {
+                normalStartTime: "09:00",
+                normalEndTime: "17:00",
+                overtimeEndTime: "22:00",
+            }
+        );
+    
+        totalNormalHours += normalHours;
+        totalOvertimeHours += overtimeHours;
+      });
+    
+
+      console.log('totalNormalHours: ', totalNormalHours);
+
+      const totalCost =
+        totalNormalHours * parseFloat(normalRate) +
+        totalOvertimeHours * parseFloat(overtimeRate);
+      console.log('patch: totalCost: ', totalCost);
 
       const updatedTimesheet = await storage.updateTimesheet(
         parseInt(req.params.id),
-        req.body,
+        {
+          dailyHours: req.body.dailyHours,
+          totalHours: String(totalNormalHours + totalOvertimeHours),
+          normalHours: String(totalNormalHours),
+          overtimeHours: String(totalOvertimeHours),
+          totalCost: String(totalCost),
+          status: req.body.status || "draft",
+          projectId: timesheet.projectId,
+        },
       );
+      
+       // Finally, update project total hours to keep consistency
+       await storage.updateProjectHours(updatedTimesheet.projectId);
+
       res.json(updatedTimesheet);
+
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
@@ -192,6 +318,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
       await storage.deleteTimesheet(parseInt(req.params.id));
       res.sendStatus(200);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Project routes
+  app.post("/api/projects", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+      
+      const project = await storage.createProject(req.body);
+      res.status(201).json(project);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/projects", async (req, res) => {
+    try {
+      if (!req.user) return res.sendStatus(401);
+      
+      const projects = await storage.listAllProjects();
+      res.json(projects);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/projects/:id", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+      
+      const project = await storage.updateProject(
+        parseInt(req.params.id),
+        req.body
+      );
+      res.json(project);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/projects/:id", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+      
+      await storage.deleteProject(parseInt(req.params.id));
+      res.sendStatus(204);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
@@ -247,29 +421,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/users/:id/rates", async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
+  
+      const userId = parseInt(req.params.id);
+      const { normalRate, overtimeRate } = req.body;
+  
+      if (typeof normalRate !== "number" || normalRate <= 0 || isNaN(normalRate)) {
+        return res.status(400).json({ message: "Normal rate must be a valid positive number." });
+      }
+      if (typeof overtimeRate !== "number" || overtimeRate <= 0 || isNaN(overtimeRate)) {
+        return res.status(400).json({ message: "Overtime rate must be a valid positive number." });
+      }
+  
+      const updatedUser = await storage.updateUserRates(userId, normalRate, overtimeRate);
+  
+      return res.status(200).json({ success: true, user: updatedUser });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "An error occurred while updating rates." });
+    }
+  });
+  
+  
   // Invoices
   app.post("/api/invoices", async (req, res) => {
+    
     try {
+
       if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
 
       // Extract timesheetIds separately from the request body
       const { timesheetIds, ...invoiceData } = req.body;
+
       // Validate timesheetIds
-      if (
-        !timesheetIds ||
-        !Array.isArray(timesheetIds) ||
-        timesheetIds.length === 0
-      ) {
-        return res
-          .status(400)
-          .json({ message: "No timesheets selected for invoice generation" });
+      if (!timesheetIds || !Array.isArray(timesheetIds) || timesheetIds.length === 0) {
+        return res.status(400).json({ message: "No timesheets selected for invoice generation" });
       }
       console.log("Received timesheetIds:", timesheetIds);
 
       // Now pass both `invoiceData` and `timesheetIds` to `createInvoice`
       const invoice = await storage.createInvoice(invoiceData, timesheetIds);
-
       res.status(201).json(invoice);
+
     } catch (error: any) {
       console.error("Invoice creation error:", error.message);
       res.status(400).json({ message: error.message });
@@ -342,6 +536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
+
 
   const httpServer = createServer(app);
   return httpServer;

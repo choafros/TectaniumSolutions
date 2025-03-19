@@ -3,7 +3,9 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
-// Base tables
+/**
+ * Base tables
+ */
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -11,6 +13,14 @@ export const users = pgTable("users", {
   role: text("role", { enum: ["admin", "client", "candidate"] }).notNull(),
   companyId: integer("company_id").references(() => companies.id),
   active: boolean("active").default(true),
+  normalRate: decimal("normal_rate", { precision: 10, scale: 2 }).notNull(),
+  overtimeRate: decimal("overtime_rate", { precision: 10, scale: 2 }).notNull(),
+  nino: text("nino").notNull().unique(),
+  utr: text("utr").notNull().unique(),
+  userType: text("user_type", { enum: ["sole_trader", "business"] }).notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  email: text("email").notNull(),
+  address: text("address").notNull(),
 });
 
 export const companies = pgTable("companies", {
@@ -33,37 +43,58 @@ export const documents = pgTable("documents", {
   approved: boolean("approved").default(false),
 });
 
-// Updated timesheet schema with reference number
 export const timesheets = pgTable("timesheets", {
   id: serial("id").primaryKey(),
-  referenceNumber: text("reference_number").notNull().unique(), // Added reference number
+  referenceNumber: text("reference_number").notNull().unique(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   weekStarting: timestamp("week_starting").notNull(),
   dailyHours: jsonb("daily_hours").notNull(),
   totalHours: decimal("total_hours").notNull(),
   status: text("status", { enum: ["draft", "pending", "approved", "rejected", "invoiced"] }).default("draft"), // Added invoiced status
   notes: text("notes"),
+  normalHours: decimal("normal_hours", { precision: 10, scale: 2 }).notNull(),
+  normalRate: decimal("normal_rate", { precision: 10, scale: 2 }).notNull(),
+  overtimeHours: decimal("overtime_hours", { precision: 10, scale: 2 }).notNull(),
+  overtimeRate: decimal("orvertime_rate", { precision: 10, scale: 2 }).notNull(),
+  totalCost: decimal("total_cost", { precision: 10, scale: 2}).notNull(),
+  projectId: integer("project_id").notNull().references(() => projects.id),
+
 });
 
-// Updated invoice table with reference number
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
-  referenceNumber: text("reference_number").notNull().unique(), // Added reference number
+  referenceNumber: text("reference_number").notNull().unique(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   vatRate: decimal("vat_rate", { precision: 5, scale: 2 }).notNull(),
   cisRate: decimal("cis_rate", { precision: 5, scale: 2 }).notNull(),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
-  normalHours: decimal("normal_hours", { precision: 10, scale: 2 }).notNull(), // Added for breakdown
-  overtimeHours: decimal("overtime_hours", { precision: 10, scale: 2 }).notNull(), // Added for breakdown
-  normalRate: decimal("normal_rate", { precision: 10, scale: 2 }).notNull(), // Added for breakdown
-  overtimeRate: decimal("overtime_rate", { precision: 10, scale: 2 }).notNull(), // Added for breakdown
+  normalHours: decimal("normal_hours", { precision: 10, scale: 2 }).notNull(),
+  overtimeHours: decimal("overtime_hours", { precision: 10, scale: 2 }).notNull(),
+  normalRate: decimal("normal_rate", { precision: 10, scale: 2 }),
+  overtimeRate: decimal("overtime_rate", { precision: 10, scale: 2 }),
   status: text("status", { enum: ["pending", "paid", "overdue"] }).default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
   notes: text("notes"),
 });
 
-// Relations
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }).notNull(),
+  totalHours: decimal("total_hours", { precision: 10, scale: 2 }).default("0"),
+  location: text("location").notNull(),
+});
+
+export const invoiceTimesheets = pgTable("invoice_timesheets", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  timesheetId: integer("timesheet_id").notNull().references(() => timesheets.id, { onDelete: "cascade" }),
+});
+
+/**
+ * Relations
+ */
 export const userRelations = relations(users, ({ many }) => ({
   documents: many(documents),
   timesheets: many(timesheets),
@@ -78,14 +109,21 @@ export const documentRelations = relations(documents, ({ one }) => ({
 }));
 
 export const timesheetRelations = relations(timesheets, ({ one, many }) => ({
+  
   user: one(users, {
     fields: [timesheets.userId],
     references: [users.id],
   }),
+  
   invoiceTimesheets: many(invoiceTimesheets),
+
+  project: one(projects, {
+    fields: [timesheets.projectId],
+    references: [projects.id],
+  }),
+
 }));
 
-// Add invoice relations
 export const invoiceRelations = relations(invoices, ({ one, many }) => ({
   user: one(users, {
     fields: [invoices.userId],
@@ -94,14 +132,10 @@ export const invoiceRelations = relations(invoices, ({ one, many }) => ({
   invoiceTimesheets: many(invoiceTimesheets),
 }));
 
-// Add timesheet-invoice relation
-export const invoiceTimesheets = pgTable("invoice_timesheets", {
-  id: serial("id").primaryKey(),
-  invoiceId: integer("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
-  timesheetId: integer("timesheet_id").notNull().references(() => timesheets.id, { onDelete: "cascade" }),
-});
+export const projectRelations = relations(projects, ({ many }) => ({
+  timesheets: many(timesheets),
+}));
 
-// Add invoice timesheet relations
 export const invoiceTimesheetRelations = relations(invoiceTimesheets, ({ one }) => ({
   invoice: one(invoices, {
     fields: [invoiceTimesheets.invoiceId],
@@ -120,6 +154,7 @@ export const insertDocumentSchema = createInsertSchema(documents);
 export const insertTimesheetSchema = createInsertSchema(timesheets);
 export const insertInvoiceSchema = createInsertSchema(invoices);
 export const insertInvoiceTimesheetSchema = createInsertSchema(invoiceTimesheets);
+export const insertProjectSchema = createInsertSchema(projects);
 
 // Type for daily hours structure
 export type DailyHours = {
@@ -129,20 +164,22 @@ export type DailyHours = {
   };
 };
 
-// Add invoice types
-export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
-export type InsertInvoiceTimesheet = z.infer<typeof insertInvoiceTimesheetSchema>;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type InsertTimesheet = z.infer<typeof insertTimesheetSchema>;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+export type InsertInvoiceTimesheet = z.infer<typeof insertInvoiceTimesheetSchema>;
 
+/**
+ * type exports
+ */
 export type User = typeof users.$inferSelect;
 export type Company = typeof companies.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type Timesheet = typeof timesheets.$inferSelect;
-
-// Add invoice table types
+export type Project = typeof projects.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;
 export type InvoiceTimesheet = typeof invoiceTimesheets.$inferSelect;

@@ -12,6 +12,7 @@ export function calculateNormalAndOvertimeHours(
     overtimeEndTime: string;
   }
 ): { normalHours: number; overtimeHours: number } {
+
   if (!timeSlot.start || !timeSlot.end) return { normalHours: 0, overtimeHours: 0 };
 
   const start = timeSlot.start;
