@@ -13,14 +13,14 @@ export const users = pgTable("users", {
   role: text("role", { enum: ["admin", "client", "candidate"] }).notNull(),
   companyId: integer("company_id").references(() => companies.id),
   active: boolean("active").default(true),
-  normalRate: decimal("normal_rate", { precision: 10, scale: 2 }).notNull(),
-  overtimeRate: decimal("overtime_rate", { precision: 10, scale: 2 }).notNull(),
-  nino: text("nino").notNull().unique(),
-  utr: text("utr").notNull().unique(),
-  userType: text("user_type", { enum: ["sole_trader", "business"] }).notNull(),
-  phoneNumber: text("phone_number").notNull(),
-  email: text("email").notNull(),
-  address: text("address").notNull(),
+  normalRate: decimal("normal_rate", { precision: 10, scale: 2 }),
+  overtimeRate: decimal("overtime_rate", { precision: 10, scale: 2 }),
+  nino: text("nino").unique(),
+  utr: text("utr").unique(),
+  userType: text("user_type", { enum: ["sole_trader", "business"] }),
+  phoneNumber: text("phone_number"),
+  email: text("email"),
+  address: text("address"),
 });
 
 export const companies = pgTable("companies", {

@@ -132,7 +132,7 @@ export default function DashboardLayout({
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b px-4">
         <div className="flex items-center justify-between h-16">
           <Link href="/dashboard">
-            <span className="text-xl font-bold cursor-pointer">Tectanium</span>
+            <span className="text-xl font-bold cursor-pointer">CRM</span>
           </Link>
           <Button
             variant="ghost"
@@ -161,7 +161,7 @@ export default function DashboardLayout({
       <div className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col border-r bg-card">
         <div className="p-6">
           <Link href="/dashboard">
-            <span className="text-xl font-bold cursor-pointer">Tectanium</span>
+            <span className="text-xl font-bold cursor-pointer">CRM</span>
           </Link>
         </div>
         <div className="px-3 flex-1">

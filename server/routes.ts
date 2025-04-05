@@ -382,6 +382,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/users/:id', async (req, res) => {
+    const userId = Number(req.params.id);
+    try {
+      // Fetch the user from the database based on the userId.
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      return res.json(user);
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.delete("/api/users/:id", async (req, res) => {
     try {
       if (!req.user || req.user.role !== "admin") return res.sendStatus(401);
@@ -406,14 +421,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
       const userId = parseInt(req.params.id);
       const { active } = req.body;
-  
+      
       // Validate that active is a boolean
       if (typeof active !== "boolean") {
         return res.status(400).json({ message: "Active status must be a boolean" });
       }
   
       // Update the user's active status
-      await storage.updateUserActiveStatus(userId, active);
+      await storage.updateUser(userId, {active});
       return res.status(200).json({ success: true });
 
     } catch (error: any) {

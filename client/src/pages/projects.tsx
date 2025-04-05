@@ -158,6 +158,20 @@ function ProjectsPage() {
     );
   }
 
+  const handleEditClick = (project) => {
+    setSelectedProject(project);
+    
+    // This line is crucial - it populates the form with the project data
+    form.reset({
+      name: project.name,
+      hourlyRate: project.hourlyRate,
+      totalHours: project.totalHours,
+      location: project.location,
+    });
+    
+    setEditModalOpen(true);
+  };
+
   return (
     <DashboardLayout>
       <ProjectsHeader />
@@ -215,7 +229,7 @@ function ProjectsPage() {
                 )}
               />
 
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="hourlyRate"
                 render={({ field }) => (
@@ -227,7 +241,7 @@ function ProjectsPage() {
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+              /> */}
 
               <FormField
                 control={form.control}
@@ -242,67 +256,6 @@ function ProjectsPage() {
                   </FormItem>
                 )}
               />
-            
-                <FormLabel> Normal Time</FormLabel>
-                <FormLabel> Over Time</FormLabel>
-
-                {/* normal and overtime controls */}
-                <div className="grid grid-cols-4 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="totalHours"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Start</FormLabel>
-                            <FormControl>
-                            <Input type="time" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="totalHours"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>End</FormLabel>
-                            <FormControl>
-                            <Input type="time" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="totalHours"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Start</FormLabel>
-                                <FormControl>
-                                    <Input type="time" {...field} />
-                                </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="totalHours"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>End</FormLabel>
-                                <FormControl>
-                                    <Input type="time" {...field} />
-                                </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                </div>
             </div>
 
             <div className="flex justify-end">
@@ -323,7 +276,7 @@ function ProjectsPage() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Location</TableHead>
-              <TableHead>Hourly Rate</TableHead>
+              {/* <TableHead>Hourly Rate</TableHead> */}
               <TableHead>Total Hours</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -333,9 +286,9 @@ function ProjectsPage() {
               <TableRow key={project.id}>
                 <TableCell>{project.name}</TableCell>
                 <TableCell>{project.location}</TableCell>
-                <TableCell>
+                {/* <TableCell>
                     £ {typeof project.hourlyRate === 'number' ? project.hourlyRate.toFixed(2): parseFloat(project.hourlyRate).toFixed(2)}
-                </TableCell>
+                </TableCell> */}
                 <TableCell>
                 £ {typeof project.totalHours === 'number' ? project.totalHours.toFixed(2): parseFloat(project.totalHours).toFixed(2)}
                 </TableCell>
@@ -345,8 +298,7 @@ function ProjectsPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        setSelectedProject(project);
-                        setEditModalOpen(true);
+                        handleEditClick(project);
                       }}
                     >
                       <PencilLine className="h-4 w-4" />

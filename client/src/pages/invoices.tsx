@@ -1,9 +1,12 @@
 import { useState } from "react";
+import { jsPDF } from "jspdf";
+import { autoTable, applyPlugin } from 'jspdf-autotable'
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Invoice, Timesheet } from "@shared/schema";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Checkbox } from "@/components/ui/checkbox";
+import { endOfWeek, endOfMonth } from 'date-fns';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,6 +61,7 @@ import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SearchInput } from "@/components/ui/search";
 import { calculateNormalAndOvertimeHours } from "@/lib/timesheet-utils";
+import { styleText } from "util";
 
 type InvoiceWithUser = Invoice & { username: string; timesheets?: Timesheet[] };
 
@@ -89,6 +93,256 @@ function calculateInvoiceTotal(
   const cisAmount = subtotal * (cisRate / 100);
   return subtotal + vatAmount - cisAmount;
 }
+async function generateInvoicePDF(invoice: any, userData: any) {
+
+
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // --- Styles ---
+  const primaryColor = '#2d3436';
+  const secondaryColor = '#636e72';
+  const accentColor = '#f8f4f4';
+  
+  // --- Header Section ---
+  doc.setFontSize(20);
+  doc.setTextColor(primaryColor);
+  doc.setFont('helvetica', 'bold');
+
+  
+  // --- Company Details (Top Right) ---
+  doc.setFontSize(10);
+  doc.setTextColor(secondaryColor);
+  doc.text("Techtanium Ltd", pageWidth - 14, 10, { align: "right" });
+  doc.text("123 Innovation Street", pageWidth - 14, 15, { align: "right" });
+  doc.text("London, UK", pageWidth - 14, 20, { align: "right" });
+  
+  // --- Logo (Top Left) ---
+  const imageData = "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i0biupXmnvtTTshpbaMSWHJaM39PszdKf1CwqW+9ENlSFKbeMe+mQefm058qZdkQncRgBkpDTVtxy/Ei45c+VFcnDJE+MYyER221i7K9c197Q+LvdlNPocLspnDUNLBVuPq3syfTzBph+NmDrOFttFlR3XVa5kHt7awxb0NTzbcBltV2NrZYJuPGFj21Icl4e/MWp5Ko0lChlbRYacd2xv6anyhEQhJQ3snLedv57ft/JLOTMZRyX6udRMQeDiV4Nm3UcHLC9TEKa/uCivTzSMx9v0fYSmg83xsa8HjMpaZ+qKW/FipadVxUPfT7dP/EACcQAQABAwMCBgMBAAAAAAAAAAERACExQVFhcYEgQJGhwfAwcPGx/9oACAEBAAE/If3HnW4WlXYKILFrpDyNfzdfy9fwtJgBdUVlFqSg4nPk80b4lcNJxIwgY0vT9M/2kmEvpvX3j5qY/BkJ1ahVSI/JEvalkS97hiIpetIMX4RAE8UHKjrIjwJMAOgUVFC8kXEMbi8W7qDEkW3MiIe5moXr/wDUlExKnotMiR1Nz2FuqphLFrbrYWZNiaPbojVU0Gr1oACLaEhPSl8RVIInog9KcVkhaj8GoU2N28kuQs9DRRUE2SMEkU7z4Y1tm5wti8TWZ7YOHcWKCiN2QmKNSkQWLQ1kShQQaFcqtFmWPoUAD5ZCRbOWYxQCnvDYWRMdaldSxgJbq5FOtFiPECIFo7DReUukaagXc3xbmmPWsg6e9A6o9Z3AUKyYwFTalR5imwG4xR00TBO4dvnmlbhjq1vAjCnO7ZhWHtMVq/ewwLrbaMxm9SUWRSUjH3aNUdamDsQaAak9YBGDEyevjk+3xUdiUQXby/fQ4Uey8SfdYpGxHfsBU/0/lBGr6LRzTHBgGMBLwnD502NBllzZJgGw4mnVSJCtSEs5XlvkIVccp0vNzGi04GOJ2naGybjZaiTQT1grFGqrfxpjHI2DbZa4pg7YHK5yZl+GP+hIlz7UQSwEIAOnBULxkXtXpC9vLv11yyHcS5QQhnWmczOe9BD2ELBsS+z96f/aAAwDAQACAAMAAAAQ888888888888888888888888888888888888888888888888888886y+1888888888+DBvMIokEsU8889W88w4w408888Df88888888888888888888888888888888888888888888888888888888888888888888888888//EACIRAQACAQMDBQAAAAAAAAAAAAERIQAwMVFBYZFQYIGx8P/aAAgBAwEBPxD1VGcVmJJjmM7LOy85ByORk0npSw2Q8kNqmcDIE1SSljljWQgehuN7xOUZab+f3GmcjwYAQO/26kgNZKj2X//EACQRAAIBAwIGAwAAAAAAAAAAAAERIQAxYTBBUFFxgZGxYKHw/9oACAECAQE/EOKg6S2NQ+tYqx05YuRC0kAhzc30JylRkYSckMiCzlQ6QDc4YYYrt0kJHqPPfT/LlV/pqAdMvPBCPkRbNPeBATiPSHb4X//EACcQAQEAAgICAAYBBQAAAAAAAAERACExQVFhIEBwocHwEDBxkbHh/9oACAEBAAE/EPrGsNJsJcA2unGNAoinJAmfv35z9m/OfoX5w/GoCAcvOCeKiOOVgg+TcftPoIgb35OJgdLIBoOTbvzfRr+EK+N4cziIZ79AAAF0d6wigDTbKqyJ0XbzrLy+kz8inV+7K13OaJ26MBdmluAMyC4oRIlC4N3KnTDDIByp2bBABHyv3UW1svt1t/8AR/lvK2v+zijkDsEsdrs15VkkcDLymhgDK0MGOlFa1qIVWh384XohzrCNmHE4MGNL4lZNoAbqMUgeyKEaIE3pwT28nrdEKK+Dozdo4lRY0Gg37X4TwmpFS4bByD10OE42RR5AZXAz0TDcfEQhQIsp3jJ6sio48VWdXB5eRjAVQRn+3WjH8fAImdkg+Lg4EqQWvHbWtXrF8IzXgiNtpjbijsRKMH1QEWA5PE2jgxNkFDvTHTEZT6ALvVRSIYxltAOAFaabNnk8408UI3BaAaBdoY7JjLQWIshAFYl4qRGgFUjpiIdLBAcm04hPYgAOxwiPWGx1N0pOnEXLZYkuVKSEIOENIoMFhiDJ0xyYEN6EJuPBF6PDKkkbrdCIoXlfb4/TK4rLIsl1fl37F8foOb1Y4J7P+MyHt/xRD/IuVzclr0RFxQhu5d8ik3O7CLucjXmcVoiQOhwCCN6zAU6VjSY6IghrAW/HeyBWR68hXAy+cD+LligddaxSUeBzbuEzT54PRh9IJNgX6tOf6Jo822TleVgD2vUWBn+IQ2h0QeR6SCWsJQw8NoN8nl8uYvoRD4QE2lE0p3lRsEEPkaVvCpxgGmGjUUA+AH10/9k=";
+  // Add the logo image at the desired position (x: 14, y: 10, width: 20, height: 20)
+  doc.addImage(imageData, "PNG", 14, 5, 50, 50);
+  
+  // --- Client Details ---
+  const clientY = 50;
+  doc.setFontSize(15);
+  doc.setTextColor(primaryColor);
+  doc.text("INVOICE TO:", 14, clientY);
+
+  doc.setFontSize(10);
+  doc.setTextColor(secondaryColor);
+  doc.text(userData?.username || `User #${invoice.userId}`, 14, clientY + 7);
+  doc.text(userData?.address || "Address not available", 14, clientY + 14);
+  doc.text(userData?.email || "Email not available", 14, clientY + 21);
+  doc.text(userData?.phoneNumber || "Phone not available", 14, clientY + 27);
+
+  // --- Invoice Metadata ---
+  const metaY = clientY;
+  let dateIssued: Date;
+  if (userData.billingFrequency === 'Weekly') {
+    dateIssued = endOfWeek(new Date(), { weekStartsOn: 1 });
+  } else if (userData.billingFrequency === 'Monthly') {
+    dateIssued = endOfMonth(new Date());
+  } else {
+    dateIssued = new Date();
+  }
+  // TODO: Change
+  const dueDate = dateIssued;
+  
+  const invoiceMeta = [
+    ["Invoice", invoice.referenceNumber],
+    ["Date Issued", dateIssued.toLocaleDateString()],
+    ["Due Date", dueDate.toLocaleDateString()], // Define dueDateString as needed (e.g., end of week/month)
+    ["UTR", userData.utr],
+    ["VAT Number", "GB123456789"],
+  ];
+  
+  const tableWidth = 50; // Total table width: first column 50 + second column 100 (adjust as needed)
+  const rightMargin = 14;
+  const startX = pageWidth - rightMargin - tableWidth;
+
+  // Render the metadata table using autoTable:
+  autoTable(doc, {
+    startY: metaY,
+    margin: { left: startX, right: rightMargin },
+    body: invoiceMeta,
+    theme: "plain",
+    styles: { fontSize: 10, cellPadding: 2 },
+    columnStyles: {
+      0: {
+        cellWidth: 30,
+        halign: "right",
+        fillColor: accentColor,
+        fontStyle: "bold"
+      },
+      1: {
+        cellWidth: 100,
+        halign: "left"
+      },
+    },
+  });
+
+  // --- Main Items Table ---
+  const tableColumns = [
+    { header: "Description", dataKey: "description" },
+    { header: "Normal Hours", dataKey: "normalHours" },
+    { header: "Overtime Hours", dataKey: "overtimeHours" },
+    { header: "Subtotal", dataKey: "subtotal" }
+  ];
+  const tableBody = [{
+    description: "Development Services",
+    normalHours: invoice.normalHours,
+    overtimeHours: invoice.overtimeHours,
+    subtotal: `£ ${invoice.subtotal}`
+  }];
+
+  autoTable(doc, {
+    startY: 100,
+    head: [tableColumns.map(c => c.header)],
+    body: tableBody.map((item: { [key: string]: any }) => tableColumns.map(c => item[c.dataKey])),
+    theme: 'striped',
+    headStyles: { 
+      fillColor: primaryColor,
+      textColor: 255,
+      fontSize: 10
+    },
+    bodyStyles: { fontSize: 10 },
+    margin: { left: 14, right: 14 }
+  });
+
+  // --- Dynamic Totals Table ---
+  const subtotal = Number(invoice.subtotal);
+  const taxRate = Number(invoice.vatRate) || 0; // Defaults to 0 if not provided
+  const cisRate = Number(invoice.cisRate) || 0;   // Defaults to 0 if not provided
+
+  const taxAmount = subtotal * (taxRate / 100);
+  const cisDeduction = cisRate > 0 ? subtotal * (cisRate / 100) : 0;
+  const totalDue = subtotal + taxAmount - cisDeduction;
+
+  interface TotalRow {
+    label: string;
+    value: number;
+  }
+
+  // Determine label for CIS row based on the cisRate value
+  const cisLabel = cisRate === 20 ? "Default" : cisRate === 30 ? "Higher" : `${cisRate}%`;
+
+  // Build totals rows array. The CIS row is only added if cisRate > 0.
+  const totals: (TotalRow | null)[] = [
+    { label: "Subtotal excluding tax:", value: subtotal },
+    { label: `${taxRate}% (VAT on income):`, value: taxAmount },
+    cisRate > 0
+      ? {
+          label: `CIS Deduction ${cisLabel} (${cisRate}%):`,
+          value: -cisDeduction,
+        }
+      : null,
+    { label: "Total Due:", value: totalDue },
+  ];
+  
+  
+  // Filter out null values with type safety
+  const filteredTotals = totals.filter((t): t is TotalRow => t !== null);
+
+  // Calculate position
+  const mainContentWidth = pageWidth - 28; // 14px margins on both sides
+  const totalsTableWidth = 110; // Total width of labels + values columns
+  // Calculate startY based on the last autoTable position (or default to 20 if none)
+  const startY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 2 : 20;
+
+  autoTable(doc, {
+    startY,
+    body: filteredTotals.map(t => [
+      t.label, 
+      `£${t.value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`,
+    ]),
+    theme: 'plain',
+    styles: { 
+      fontSize: 12,
+      cellPadding: 3,
+      font: 'helvetica',
+      valign: 'middle' // Vertical alignment fix
+    },
+    columnStyles: {
+      0: { // Label column
+        halign: 'right',
+        cellWidth: 70,
+        fontStyle: 'bold',
+        cellPadding: { top: 2, bottom: 2 } // Match padding
+      },
+      1: { // Value column
+        halign: 'left',
+        cellWidth: 40,
+        // fontStyle: 'bold',
+        cellPadding: { left: 10, top: 2, bottom: 2 } // Match padding
+      }
+    },
+    margin: {
+      left: pageWidth - totalsTableWidth - 14,
+      right: 14
+    }
+  });
+
+  // --- Bank Details Table ---
+  const bankDetails = [
+    ["Bank Details", ""],
+    ["Account Name:", "Techtonic Ltd"],
+    ["Account Number:", "12345678"],
+    ["Sort Code:", "12-34-56"],
+    ["Reference:", invoice.referenceNumber]
+  ];
+
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 50 : 20,
+    margin: { left: 14, right: 14 },
+    body: bankDetails,
+    theme: "plain",
+    styles: {
+      fontSize: 10,
+      cellPadding: 2,
+      textColor: secondaryColor,
+    },
+    columnStyles: {
+      0: {
+        cellWidth: 50,
+        halign: "right",
+        fillColor: accentColor,
+        fontStyle: "bold",
+      },
+      1: {
+        cellWidth: 80,
+        halign: "left",
+      },
+    },
+  });
+
+  // --- Footer Section ---
+  const footerY = doc.internal.pageSize.getHeight() - 20;
+  doc.setFontSize(10);
+  doc.setFont("times", "normal");
+  doc.setTextColor(secondaryColor);
+  doc.text("Payment Terms: 30 days", 14, footerY);
+  doc.text("Please pay using the bank details provided. Please provide the correct Reference.", 14, footerY + 5);
+  doc.text("Thank you for your business!", pageWidth - 14, footerY, { align: "right" });
+
+  return doc.output("bloburl");
+}
+
+const handleViewInvoicePDF = async (invoice: any) => {
+
+  // Fetch user data
+  let userData = null;
+  try {
+    const response = await fetch(`/api/users/${invoice.userId}`);
+    userData = await response.json();
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+  }
+  // Generate the PDF blob URL:
+  const pdfUrl = await generateInvoicePDF(invoice, userData);
+  
+  // Open the PDF in a new tab
+  window.open(pdfUrl, "_blank");
+};
 
 export default function InvoicesPage() {
   const { user } = useAuth();
@@ -658,6 +912,16 @@ export default function InvoicesPage() {
                             >
                               <Trash className="h-4 w-4 mr-2" />
                               Delete Invoice
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Call the PDF generation helper function passing the current invoice data
+                                handleViewInvoicePDF(invoice);
+                              }}
+                            >
+                              <Printer className="h-4 w-4 mr-2" />
+                              Create PDF
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
