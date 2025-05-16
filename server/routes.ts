@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
-import { db, users, companies, documents, timesheets, invoiceTimesheets } from "./db";
+import { db, users, companies, documents, timesheets, invoiceTimesheets, projects, invoices} from "./db";
 import { eq, and } from "drizzle-orm";
 import { calculateNormalAndOvertimeHours} from "../client/src/lib/timesheet-utils"
 // In-memory settings storage for now
@@ -530,10 +530,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: timesheets.status,
           notes: timesheets.notes,
           username: users.username,
+          totalCost: timesheets.totalCost,
+          normalHours: timesheets.normalHours,
+          normalRate: timesheets.normalRate,
+          overtimeHours: timesheets.overtimeHours,
+          overtimeRate: timesheets.overtimeRate,
+          projectId: timesheets.projectId,
+          projectName: projects.name,
+
         })
         .from(timesheets)
         .innerJoin(invoiceTimesheets, eq(invoiceTimesheets.timesheetId, timesheets.id))
         .innerJoin(users, eq(users.id, timesheets.userId))
+        .innerJoin(projects, eq(projects.id, timesheets.projectId))
         .where(eq(invoiceTimesheets.invoiceId, invoiceId));
 
         console.log("Found linked timesheets:", linkedTimesheets);

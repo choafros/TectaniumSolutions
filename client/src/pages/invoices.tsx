@@ -62,6 +62,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SearchInput } from "@/components/ui/search";
 import { calculateNormalAndOvertimeHours } from "@/lib/timesheet-utils";
 import { styleText } from "util";
+import { SourceTextModule } from "vm";
 
 type InvoiceWithUser = Invoice & { username: string; timesheets?: Timesheet[] };
 
@@ -95,7 +96,6 @@ function calculateInvoiceTotal(
 }
 async function generateInvoicePDF(invoice: any, userData: any) {
 
-
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -109,7 +109,6 @@ async function generateInvoicePDF(invoice: any, userData: any) {
   doc.setTextColor(primaryColor);
   doc.setFont('helvetica', 'bold');
 
-  
   // --- Company Details (Top Right) ---
   doc.setFontSize(10);
   doc.setTextColor(secondaryColor);
@@ -122,18 +121,24 @@ async function generateInvoicePDF(invoice: any, userData: any) {
   // Add the logo image at the desired position (x: 14, y: 10, width: 20, height: 20)
   doc.addImage(imageData, "PNG", 14, 5, 50, 50);
   
+  const tableWidth = 50; // Total table width: first column 50 + second column 100 (adjust as needed)
+  const rightMargin = 14;
+  const startX = pageWidth - rightMargin - tableWidth;
+  
   // --- Client Details ---
   const clientY = 50;
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(15);
   doc.setTextColor(primaryColor);
-  doc.text("INVOICE TO:", 14, clientY);
+  doc.text("INVOICE TO:", rightMargin, clientY);
 
-  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
   doc.setTextColor(secondaryColor);
-  doc.text(userData?.username || `User #${invoice.userId}`, 14, clientY + 7);
-  doc.text(userData?.address || "Address not available", 14, clientY + 14);
-  doc.text(userData?.email || "Email not available", 14, clientY + 21);
-  doc.text(userData?.phoneNumber || "Phone not available", 14, clientY + 27);
+  doc.text(userData?.username || `User #${invoice.userId}`, rightMargin, clientY + 12);
+  doc.text(userData?.address || "Address not available", rightMargin, clientY + 17);
+  doc.text(userData?.email || "Email not available", rightMargin, clientY + 22);
+  doc.text(userData?.phoneNumber || "Phone not available", rightMargin, clientY + 27);
 
   // --- Invoice Metadata ---
   const metaY = clientY;
@@ -156,44 +161,59 @@ async function generateInvoicePDF(invoice: any, userData: any) {
     ["VAT Number", "GB123456789"],
   ];
   
-  const tableWidth = 50; // Total table width: first column 50 + second column 100 (adjust as needed)
-  const rightMargin = 14;
-  const startX = pageWidth - rightMargin - tableWidth;
+  const labelColWidth = 25; // mm
+  const valueColWidth = 35; // mm
 
-  // Render the metadata table using autoTable:
   autoTable(doc, {
     startY: metaY,
-    margin: { left: startX, right: rightMargin },
-    body: invoiceMeta,
-    theme: "plain",
+    margin: { left: startX - 10, right: rightMargin },
+    theme: "grid",
     styles: { fontSize: 10, cellPadding: 2 },
     columnStyles: {
       0: {
-        cellWidth: 30,
+        cellWidth: labelColWidth,
         halign: "right",
         fillColor: accentColor,
-        fontStyle: "bold"
+        fontStyle: "bold",
       },
       1: {
-        cellWidth: 100,
-        halign: "left"
+        cellWidth: valueColWidth,
+        halign: "left",
       },
     },
+    body: invoiceMeta,
   });
 
   // --- Main Items Table ---
   const tableColumns = [
     { header: "Description", dataKey: "description" },
-    { header: "Normal Hours", dataKey: "normalHours" },
-    { header: "Overtime Hours", dataKey: "overtimeHours" },
+    { header: "Normal HRS", dataKey: "normalHours" },
+    { header: "Overtime HRS", dataKey: "overtimeHours" },
     { header: "Subtotal", dataKey: "subtotal" }
   ];
-  const tableBody = [{
-    description: "Development Services",
-    normalHours: invoice.normalHours,
-    overtimeHours: invoice.overtimeHours,
-    subtotal: `£ ${invoice.subtotal}`
-  }];
+
+  // Build one row per timesheet
+  const tableBody = (invoice.timesheets || []).map(ts => {
+
+    const nh = toNumber(ts.normalHours);
+    const nr = toNumber(ts.normalRate);
+
+    const oh = toNumber(ts.overtimeHours);
+    const or = toNumber(ts.overtimeRate);
+
+    const sub = nh*nr + oh*or;
+
+    // e.g. “TS-000001 (Week of Jun 1, 2025)”
+    const desc = `${ts.referenceNumber} (Week of ${format(new Date(ts.weekStarting), "MMM d, yyyy")})`;
+    
+    return {
+      description: desc + " \nLocation: " + (ts.projectName),
+      normalHours: nh.toFixed(2) + " HRS \n£" + nr.toFixed(2) + "/HR",
+      overtimeHours: oh.toFixed(2) + " HRS \n£" + or.toFixed(2) + "/HR",
+      subtotal: `£ ${sub.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
+
+    };
+  });
 
   autoTable(doc, {
     startY: 100,
@@ -243,49 +263,57 @@ async function generateInvoicePDF(invoice: any, userData: any) {
   // Filter out null values with type safety
   const filteredTotals = totals.filter((t): t is TotalRow => t !== null);
 
-  // Calculate position
-  const mainContentWidth = pageWidth - 28; // 14px margins on both sides
-  const totalsTableWidth = 110; // Total width of labels + values columns
-  // Calculate startY based on the last autoTable position (or default to 20 if none)
-  const startY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 2 : 20;
+  doc.setFont("times", "bold");
 
+  // Calculate position
+  const totalsTableWidth = 90; // Total width of labels + values columns
+  const startXTotals = pageWidth - totalsTableWidth - rightMargin;
+
+  
+  let currentY = (doc as any).lastAutoTable!.finalY + 4;  // a little gap below the items table
+  const rowHeight = 11;  // adjust if you change fontSize or cellPadding
+
+  // Draw lines
+  filteredTotals.forEach((t, i) => {
+    // draw a subtle grey line spanning the full width of the totals table
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.2);
+    doc.line(
+      startXTotals, 
+      currentY + rowHeight - 2,        // 2px above the bottom of this row
+      pageWidth - rightMargin, 
+      currentY + rowHeight - 2
+    );
+    currentY += rowHeight;
+  });
+
+  // 4. Now render the autoTable for totals, overriding its margin to our startXTotals
   autoTable(doc, {
-    startY,
-    body: filteredTotals.map(t => [
-      t.label, 
-      `£${t.value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`,
-    ]),
-    theme: 'plain',
-    styles: { 
+    startY: (doc as any).lastAutoTable!.finalY + 4,
+    margin: { left: startXTotals, right: rightMargin },
+    theme: "plain",
+    styles: {
+      font: "times",         // match our banking font
+      fontStyle: "bold",
       fontSize: 12,
       cellPadding: 3,
-      font: 'helvetica',
-      valign: 'middle' // Vertical alignment fix
+      textColor: primaryColor,
+      valign: "middle"
     },
     columnStyles: {
-      0: { // Label column
-        halign: 'right',
-        cellWidth: 70,
-        fontStyle: 'bold',
-        cellPadding: { top: 2, bottom: 2 } // Match padding
-      },
-      1: { // Value column
-        halign: 'left',
-        cellWidth: 40,
-        // fontStyle: 'bold',
-        cellPadding: { left: 10, top: 2, bottom: 2 } // Match padding
-      }
+      0: { halign: "right", cellWidth: 70 },
+      1: { halign: "left",  cellWidth: 40 }
     },
-    margin: {
-      left: pageWidth - totalsTableWidth - 14,
-      right: 14
-    }
+    body: filteredTotals.map(t => [
+      t.label,
+      `£ ${t.value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
+    ])
   });
 
   // --- Bank Details Table ---
   const bankDetails = [
     ["Bank Details", ""],
-    ["Account Name:", "Techtonic Ltd"],
+    ["Account Name:", "Tectanium Ltd"],
     ["Account Number:", "12345678"],
     ["Sort Code:", "12-34-56"],
     ["Reference:", invoice.referenceNumber]
@@ -337,8 +365,18 @@ const handleViewInvoicePDF = async (invoice: any) => {
   } catch (error) {
     console.error('Error fetching user data:', error);
   }
+  // --- fetch & attach timesheets ---
+  const timesheetRes = await fetch(`/api/invoices/${invoice.id}/timesheets`);
+  const timesheets: Timesheet[] = await timesheetRes.json();
+
+  // spread in your fetched timesheets
+  const enrichedInvoice = {
+    ...invoice,
+    timesheets,
+  };
+
   // Generate the PDF blob URL:
-  const pdfUrl = await generateInvoicePDF(invoice, userData);
+  const pdfUrl = await generateInvoicePDF(enrichedInvoice, userData);
   
   // Open the PDF in a new tab
   window.open(pdfUrl, "_blank");
@@ -543,7 +581,6 @@ export default function InvoicesPage() {
       subtotal += (normalHours * normalRate) + (overtimeHours * overtimeRate)
     });
   
-    console.log('calculateUserTotal: ', subtotal, totalNormalHours, totalOvertimeHours);
     
     return {
       subtotal,
