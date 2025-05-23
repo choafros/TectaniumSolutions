@@ -1,185 +1,199 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+// shared/schema.ts
 import { z } from "zod";
-import { relations } from "drizzle-orm";
 
-/**
- * Base tables
- */
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  role: text("role", { enum: ["admin", "client", "candidate"] }).notNull(),
-  companyId: integer("company_id").references(() => companies.id),
-  active: boolean("active").default(true),
-  normalRate: decimal("normal_rate", { precision: 10, scale: 2 }),
-  overtimeRate: decimal("overtime_rate", { precision: 10, scale: 2 }),
-  nino: text("nino").unique(),
-  utr: text("utr").unique(),
-  userType: text("user_type", { enum: ["sole_trader", "business"] }),
-  phoneNumber: text("phone_number"),
-  email: text("email"),
-  address: text("address"),
+/** ─── Insert Schemas & Types ─────────────────────────────────────────────── */
+
+// Users
+export const insertUserSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+  role: z.enum(["admin", "client", "candidate"]),
+  companyId: z.number().optional(),
+  active: z.boolean().optional(),
+  normalRate: z.string(),
+  overtimeRate: z.string(),
+  nino: z.string().optional(),
+  utr: z.string().optional(),
+  userType: z.enum(["sole_trader", "business"]).optional(),
+  phoneNumber: z.string().optional(),
+  email: z.string().email(),
+  address: z.string().optional(),
 });
-
-export const companies = pgTable("companies", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  logo: text("logo"),
-  website: text("website"),
-  industry: text("industry"),
-  contactEmail: text("contact_email"),
-  approved: boolean("approved").default(false),
-});
-
-export const documents = pgTable("documents", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  path: text("path").notNull(),
-  uploadedAt: timestamp("uploaded_at").defaultNow(),
-  approved: boolean("approved").default(false),
-});
-
-export const timesheets = pgTable("timesheets", {
-  id: serial("id").primaryKey(),
-  referenceNumber: text("reference_number").notNull().unique(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  weekStarting: timestamp("week_starting").notNull(),
-  dailyHours: jsonb("daily_hours").notNull(),
-  totalHours: decimal("total_hours").notNull(),
-  status: text("status", { enum: ["draft", "pending", "approved", "rejected", "invoiced"] }).default("draft"), // Added invoiced status
-  notes: text("notes"),
-  normalHours: decimal("normal_hours", { precision: 10, scale: 2 }).notNull(),
-  normalRate: decimal("normal_rate", { precision: 10, scale: 2 }).notNull(),
-  overtimeHours: decimal("overtime_hours", { precision: 10, scale: 2 }).notNull(),
-  overtimeRate: decimal("orvertime_rate", { precision: 10, scale: 2 }).notNull(),
-  totalCost: decimal("total_cost", { precision: 10, scale: 2}).notNull(),
-  projectId: integer("project_id").notNull().references(() => projects.id),
-
-});
-
-export const invoices = pgTable("invoices", {
-  id: serial("id").primaryKey(),
-  referenceNumber: text("reference_number").notNull().unique(),
-  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
-  vatRate: decimal("vat_rate", { precision: 5, scale: 2 }).notNull(),
-  cisRate: decimal("cis_rate", { precision: 5, scale: 2 }).notNull(),
-  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
-  normalHours: decimal("normal_hours", { precision: 10, scale: 2 }).notNull(),
-  overtimeHours: decimal("overtime_hours", { precision: 10, scale: 2 }).notNull(),
-  normalRate: decimal("normal_rate", { precision: 10, scale: 2 }),
-  overtimeRate: decimal("overtime_rate", { precision: 10, scale: 2 }),
-  status: text("status", { enum: ["pending", "paid", "overdue"] }).default("pending"),
-  createdAt: timestamp("created_at").defaultNow(),
-  notes: text("notes"),
-});
-
-export const projects = pgTable("projects", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }).notNull(),
-  totalHours: decimal("total_hours", { precision: 10, scale: 2 }).default("0"),
-  location: text("location").notNull(),
-});
-
-export const invoiceTimesheets = pgTable("invoice_timesheets", {
-  id: serial("id").primaryKey(),
-  invoiceId: integer("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
-  timesheetId: integer("timesheet_id").notNull().references(() => timesheets.id, { onDelete: "cascade" }),
-});
-
-/**
- * Relations
- */
-export const userRelations = relations(users, ({ many }) => ({
-  documents: many(documents),
-  timesheets: many(timesheets),
-  invoices: many(invoices),
-}));
-
-export const documentRelations = relations(documents, ({ one }) => ({
-  user: one(users, {
-    fields: [documents.userId],
-    references: [users.id],
-  }),
-}));
-
-export const timesheetRelations = relations(timesheets, ({ one, many }) => ({
-  
-  user: one(users, {
-    fields: [timesheets.userId],
-    references: [users.id],
-  }),
-  
-  invoiceTimesheets: many(invoiceTimesheets),
-
-  project: one(projects, {
-    fields: [timesheets.projectId],
-    references: [projects.id],
-  }),
-
-}));
-
-export const invoiceRelations = relations(invoices, ({ one, many }) => ({
-  user: one(users, {
-    fields: [invoices.userId],
-    references: [users.id],
-  }),
-  invoiceTimesheets: many(invoiceTimesheets),
-}));
-
-export const projectRelations = relations(projects, ({ many }) => ({
-  timesheets: many(timesheets),
-}));
-
-export const invoiceTimesheetRelations = relations(invoiceTimesheets, ({ one }) => ({
-  invoice: one(invoices, {
-    fields: [invoiceTimesheets.invoiceId],
-    references: [invoices.id],
-  }),
-  timesheet: one(timesheets, {
-    fields: [invoiceTimesheets.timesheetId],
-    references: [timesheets.id],
-  }),
-}));
-
-// Create insert schemas
-export const insertUserSchema = createInsertSchema(users);
-export const insertCompanySchema = createInsertSchema(companies);
-export const insertDocumentSchema = createInsertSchema(documents);
-export const insertTimesheetSchema = createInsertSchema(timesheets);
-export const insertInvoiceSchema = createInsertSchema(invoices);
-export const insertInvoiceTimesheetSchema = createInsertSchema(invoiceTimesheets);
-export const insertProjectSchema = createInsertSchema(projects);
-
-// Type for daily hours structure
-export type DailyHours = {
-  [key in 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday']: {
-    start: string;
-    end: string;
-  };
-};
-
-
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type InsertCompany = z.infer<typeof insertCompanySchema>;
-export type InsertDocument = z.infer<typeof insertDocumentSchema>;
-export type InsertTimesheet = z.infer<typeof insertTimesheetSchema>;
-export type InsertProject = z.infer<typeof insertProjectSchema>;
-export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
-export type InsertInvoiceTimesheet = z.infer<typeof insertInvoiceTimesheetSchema>;
 
-/**
- * type exports
- */
-export type User = typeof users.$inferSelect;
-export type Company = typeof companies.$inferSelect;
-export type Document = typeof documents.$inferSelect;
-export type Timesheet = typeof timesheets.$inferSelect;
-export type Project = typeof projects.$inferSelect;
-export type Invoice = typeof invoices.$inferSelect;
-export type InvoiceTimesheet = typeof invoiceTimesheets.$inferSelect;
+// Companies
+export const insertCompanySchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  logo: z.string().optional(),
+  website: z.string().optional(),
+  industry: z.string().optional(),
+  contactEmail: z.string().email().optional(),
+  approved: z.boolean().optional(),
+});
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+
+// Documents
+export const insertDocumentSchema = z.object({
+  userId: z.number(),
+  name: z.string(),
+  path: z.string(),
+  approved: z.boolean().optional(),
+});
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+
+// Timesheets
+export const insertTimesheetSchema = z.object({
+  referenceNumber: z.string(),
+  userId: z.number(),
+  weekStarting: z.string(), // or z.date().transform(d => d.toISOString())
+  dailyHours: z.record(
+    z.enum([
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ]),
+    z.object({ start: z.string(), end: z.string() })
+  ),
+  totalHours: z.string(),
+  status: z.enum([
+    "draft",
+    "pending",
+    "approved",
+    "rejected",
+    "invoiced",
+  ]),
+  notes: z.string().optional(),
+  normalHours: z.string(),
+  normalRate: z.string(),
+  overtimeHours: z.string(),
+  overtimeRate: z.string(),
+  totalCost: z.string(),
+  projectId: z.number(),
+});
+export type InsertTimesheet = z.infer<typeof insertTimesheetSchema>;
+
+// Invoices
+export const insertInvoiceSchema = z.object({
+  referenceNumber: z.string(),
+  userId: z.number(),
+  subtotal: z.string(),
+  vatRate: z.string(),
+  cisRate: z.string(),
+  totalAmount: z.string(),
+  normalHours: z.string(),
+  overtimeHours: z.string(),
+  status: z.enum(["pending", "paid", "overdue"]),
+  notes: z.string().optional(),
+});
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+
+// Projects
+export const insertProjectSchema = z.object({
+  name: z.string(),
+  hourlyRate: z.string(),
+  totalHours: z.string().optional(),
+  location: z.string(),
+});
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+
+/** ─── Plain TS Interfaces for Selected Rows ─────────────────────────────── */
+
+// Users
+export interface User {
+  id: number;
+  username: string;
+  role: "admin" | "client" | "candidate";
+  companyId?: number;
+  active: boolean;
+  normalRate: string;
+  overtimeRate: string;
+  nino?: string;
+  utr?: string;
+  userType?: "sole_trader" | "business";
+  phoneNumber?: string;
+  email?: string;
+  address?: string;
+}
+
+// Companies
+export interface Company {
+  id: number;
+  name: string;
+  description?: string;
+  logo?: string;
+  website?: string;
+  industry?: string;
+  contactEmail?: string;
+  approved: boolean;
+}
+
+// Documents
+export interface Document {
+  id: number;
+  userId: number;
+  name: string;
+  path: string;
+  uploadedAt: string;
+  approved: boolean;
+}
+
+// Timesheets
+export interface Timesheet {
+  id: number;
+  referenceNumber: string;
+  userId: number;
+  weekStarting: string;
+  dailyHours: Record<
+    string,
+    {
+      start: string;
+      end: string;
+    }
+  >;
+  totalHours: string;
+  status: "draft" | "pending" | "approved" | "rejected" | "invoiced";
+  notes?: string;
+  normalHours: string;
+  normalRate: string;
+  overtimeHours: string;
+  overtimeRate: string;
+  totalCost: string;
+  projectId: number;
+}
+
+// Invoices
+export interface Invoice {
+  id: number;
+  referenceNumber: string;
+  userId: number;
+  subtotal: string;
+  vatRate: string;
+  cisRate: string;
+  totalAmount: string;
+  normalHours: string;
+  overtimeHours: string;
+  status: "pending" | "paid" | "overdue";
+  createdAt: string;
+  notes?: string;
+}
+
+// Projects
+export interface Project {
+  id: number;
+  name: string;
+  hourlyRate: string;
+  totalHours: string;
+  location: string;
+}
+
+// Invoice–Timesheet join (if you need it)
+export interface InvoiceTimesheet {
+  id: number;
+  invoiceId: number;
+  timesheetId: number;
+}

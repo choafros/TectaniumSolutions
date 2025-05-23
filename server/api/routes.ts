@@ -1,10 +1,11 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth, hashPassword } from "./auth";
-import { db, users, companies, documents, timesheets, invoiceTimesheets, projects, invoices} from "./db";
+import { storage } from "../storage";
+import { setupAuth, hashPassword } from "../auth";
+import { db, users, companies, documents, timesheets, invoiceTimesheets, projects, invoices} from "../db";
 import { eq, and } from "drizzle-orm";
-import { calculateNormalAndOvertimeHours} from "../client/src/lib/timesheet-utils"
+import { calculateNormalAndOvertimeHours} from "../../client/src/lib/timesheet-utils"
 // In-memory settings storage for now
 let workSettings = {
   normalStartTime: "09:00",
@@ -15,7 +16,11 @@ let workSettings = {
   overtimeRate: "35.00",
 };
 
-export async function registerRoutes(app: Express): Promise<Server> {
+
+const app = express();
+const httpServer = createServer(app);
+
+export async function registerRoutes(app: Express): Promise<void> {
   setupAuth(app);
 
   // Create admin user if none exists
@@ -560,8 +565,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
-
-
-  const httpServer = createServer(app);
-  return httpServer;
 }
+
+
+// Register routes
+registerRoutes(app).catch((err) => {
+  console.error("Error registering routes:", err);
+});
+
+// Export the Express app
+export { app };
+// Export the HTTP server
+export default httpServer;
