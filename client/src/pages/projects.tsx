@@ -93,6 +93,8 @@ function ProjectsPage() {
       return res.json();
     },
     enabled: user?.role === "admin",
+    staleTime: 0, // Ensure data is always considered stale
+    cacheTime: 0, // Invalidate cache immediately after fetch
   });
 
   const createProject = useMutation({

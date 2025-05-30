@@ -22,6 +22,8 @@ export default function UsersPage() {
       const res = await apiRequest("GET", "/api/users");
       return res.json();
     },
+    staleTime: 0, // Ensure data is always considered stale
+    cacheTime: 0, // Invalidate cache immediately after fetch
   });
 
   // Update user active status
