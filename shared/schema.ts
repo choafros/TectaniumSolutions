@@ -107,6 +107,7 @@ export type InsertProject = z.infer<typeof insertProjectSchema>;
 export interface User {
   id: number;
   username: string;
+  password?: string;
   role: "admin" | "client" | "candidate";
   companyId?: number;
   active: boolean;

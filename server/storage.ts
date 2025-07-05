@@ -526,6 +526,7 @@ export class DatabaseStorage implements IStorage {
         username: users.username,
         normalRate: timesheets.normalRate,
         overtimeRate: timesheets.overtimeRate,
+        totalCost: timesheets.totalCost,
         projectId: timesheets.projectId,
       })
       .from(timesheets)
@@ -533,6 +534,8 @@ export class DatabaseStorage implements IStorage {
   
     return sheets.map((sheet) => ({
       ...sheet,
+      // Convert Date object to string to match the 'Timesheet' interface
+      weekStarting: new Date(sheet.weekStarting).toISOString(), 
       username: sheet.username || "Unknown User",
       projectId: sheet.projectId,
     }));

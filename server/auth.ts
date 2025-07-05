@@ -128,7 +128,10 @@ export function setupAuth(app: Express) {
   
   // Login an existing user
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+  
+    // passport.authenticate callback to include types for err, user, and info
+    passport.authenticate("local", (err: any, user: Express.User | false, info: any) => {
+      
       if (err) {
         return res.status(401).json({ message: err.message });
       }
