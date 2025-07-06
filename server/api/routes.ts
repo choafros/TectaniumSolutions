@@ -177,7 +177,10 @@ export async function registerRoutes(app: Express): Promise<void> {
             projectId: req.body.projectId,
           },
         );
-        
+      
+        // Update project hours here as well
+        await storage.updateProjectHours(req.body.projectId);
+
         return res.json(timesheet);
 
       } else {
@@ -185,7 +188,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         timesheet = await storage.createTimesheet({
           referenceNumber: '',
           userId: req.user.id,
-          weekStarting,
+          weekStarting: weekStarting.toISOString(),
           dailyHours: req.body.dailyHours,
           totalHours: String(totalNormalHours + totalOvertimeHours),
           normalHours: String(totalNormalHours),
