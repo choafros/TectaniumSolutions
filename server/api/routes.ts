@@ -30,7 +30,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       username: "admin",
       password: await hashPassword("admin"),
       role: "admin",
-      companyId: null,
+      normalRate: "30",
+      overtimeRate: "50",
+      email: "admin@tectanium.com",
     });
   }
 
@@ -49,14 +51,13 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Documents
   app.post("/api/documents", async (req, res) => {
     try {
+      // Create document for the current user only
       if (!req.user) return res.sendStatus(401);
 
-      // Create document for the current user only
       const doc = await storage.createDocument({
         userId: req.user.id,
         name: req.body.name,
         path: req.body.path,
-        uploadedAt: new Date(),
       });
       res.status(201).json(doc);
     } catch (error: any) {
@@ -136,7 +137,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       Object.values(req.body.dailyHours).forEach((dayHours) => {
 
         const { normalHours, overtimeHours } = calculateNormalAndOvertimeHours(
-          dayHours,
+          dayHours as { start: string; end: string }, 
           {
             normalStartTime: "09:00",
             normalEndTime: "17:00",

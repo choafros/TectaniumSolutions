@@ -7,7 +7,7 @@
       "dev": "tsx index.ts",
       "build": "esbuild index.ts --platform=node --bundle --format=esm --outdir=dist",
       "start": "NODE_ENV=production node dist/index.js",
-      "db:push": "drizzle-kit push",
+      "db:push": "drizzle-kit push:pg",
       "check": "tsc --build ../tsconfig.json"
     },
     "dependencies": {

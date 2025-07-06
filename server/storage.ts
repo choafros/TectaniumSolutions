@@ -83,7 +83,7 @@ export class DatabaseStorage implements IStorage {
 
   async getUserById(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    return nullsToUndefined(user) as User;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
@@ -91,16 +91,17 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(users)
       .where(eq(users.username, username));
-    return user;
+    return nullsToUndefined(user) as User;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+    return  nullsToUndefined(user) as User;
   }
 
   async listUsers(): Promise<User[]> {
-    return await db.select().from(users);
+    const allUsers = await db.select().from(users);
+    return allUsers.map(nullsToUndefined) as User[];
   }
 
   async updateUser(id: number, update: Partial<User>): Promise<User> {
@@ -109,16 +110,17 @@ export class DatabaseStorage implements IStorage {
       .set(update)
       .where(eq(users.id, id))
       .returning();
-    return user;
+    return nullsToUndefined(user) as User;
   }
   async updateUserRates(id: number, normalRate: number, overtimeRate: number): Promise<User> {
     const [user] = await db
       .update(users)
-      .set({ normalRate, overtimeRate })
+      .set({ normalRate: String(normalRate), 
+            overtimeRate: String(overtimeRate) })
       .where(eq(users.id, id))
       .returning();
   
-    return user;
+    return nullsToUndefined(user) as User;
   }
 
   async deleteUser(id: number): Promise<void> {
@@ -131,12 +133,12 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(companies)
       .where(eq(companies.id, id));
-    return company;
+    return nullsToUndefined(company) as Company;
   }
 
   async createCompany(company: InsertCompany): Promise<Company> {
     const [newCompany] = await db.insert(companies).values(company).returning();
-    return newCompany;
+    return nullsToUndefined(newCompany) as Company;
   }
 
   async updateCompany(id: number, company: Partial<Company>): Promise<Company> {
@@ -145,32 +147,57 @@ export class DatabaseStorage implements IStorage {
       .set(company)
       .where(eq(companies.id, id))
       .returning();
-    return updatedCompany;
+    return nullsToUndefined(updatedCompany) as Company;
   }
 
   async listCompanies(): Promise<Company[]> {
-    return await db.select().from(companies);
+     const result = await db.select().from(companies);
+    return result.map(nullsToUndefined) as Company[];
   }
 
   async createDocument(doc: InsertDocument): Promise<Document> {
     const [newDoc] = await db.insert(documents).values(doc).returning();
-    return newDoc;
+    const formattedDoc = {
+      ...newDoc,
+      uploadedAt: newDoc.uploadedAt!.toISOString(),
+    };
+
+    return nullsToUndefined(formattedDoc) as Document;
+
   }
 
   async getDocuments(userId: number): Promise<Document[]> {
-    return await db
+    const docs = await db
       .select()
       .from(documents)
       .where(eq(documents.userId, userId));
+      
+    return docs.map(doc => ({
+      ...doc,
+      uploadedAt: doc.uploadedAt.toISOString(),
+    })) as Document[];
   }
 
   async updateDocument(id: number, doc: Partial<Document>): Promise<Document> {
-    const [updatedDoc] = await db
+     // Convert uploadedAt to Date if it's a string
+    const docForDb = {
+      ...doc,
+      uploadedAt: doc.uploadedAt ? new Date(doc.uploadedAt) : undefined,
+    };
+    const [updatedDocFromDb] = await db
       .update(documents)
-      .set(doc)
+      .set(docForDb)
       .where(eq(documents.id, id))
       .returning();
-    return updatedDoc;
+    
+      // Transform the raw database object to match the Document interface
+    const formattedDoc = {
+      ...updatedDocFromDb,
+      // Safely convert the Date to a string
+      uploadedAt: updatedDocFromDb.uploadedAt!.toISOString(), 
+    };
+
+    return nullsToUndefined(formattedDoc) as Document;
   }
 
   async deleteDocument(id: number): Promise<void> {
@@ -191,8 +218,12 @@ export class DatabaseStorage implements IStorage {
       .from(documents)
       .leftJoin(users, eq(documents.userId, users.id));
 
-    return docs.map((doc) => ({
+     return docs.map((doc) => ({
       ...doc,
+      // Safely handle null for uploadedAt, providing a fallback date string
+      uploadedAt: doc.uploadedAt ? doc.uploadedAt.toISOString() : new Date(0).toISOString(),
+      // Safely handle null for approved, providing a fallback boolean
+      approved: doc.approved || false,
       username: doc.username || "Unknown User",
     }));
   }
@@ -231,6 +262,7 @@ export class DatabaseStorage implements IStorage {
         .insert(timesheets)
         .values({
           ...timesheet,
+          weekStarting: new Date(timesheet.weekStarting), // Convert to Date
           referenceNumber,
         })
         .returning();
@@ -239,8 +271,10 @@ export class DatabaseStorage implements IStorage {
 
       return {
         ...newTimesheet,
-        weekStarting: new Date(newTimesheet.weekStarting).toISOString(), // Ensure weekStarting is a string
-        dailyHours: newTimesheet.dailyHours as DailyHours
+        // Ensure weekStarting is a string
+        weekStarting: new Date(newTimesheet.weekStarting).toISOString(),
+        dailyHours: newTimesheet.dailyHours as DailyHours,
+        notes: newTimesheet.notes ?? undefined,
       };
     } catch (error) {
       console.error('Error creating timesheet:', error);
@@ -252,10 +286,20 @@ export class DatabaseStorage implements IStorage {
     id: number,
     timesheet: Partial<Timesheet>,
   ): Promise<Timesheet> {
+
     console.log("Updating timesheet:", id, timesheet);
+    
+    // Convert weekStarting to Date if it's a string
+    const timesheetForDb = {
+      ...timesheet,
+      weekStarting: timesheet.weekStarting
+        ? new Date(timesheet.weekStarting)
+        : undefined,
+    };
+
     const [updatedTimesheet] = await db
       .update(timesheets)
-      .set(timesheet)
+      .set(timesheetForDb)
       .where(eq(timesheets.id, id))
       .returning();
 
@@ -264,7 +308,9 @@ export class DatabaseStorage implements IStorage {
     return {
       ...updatedTimesheet,
       weekStarting: new Date(updatedTimesheet.weekStarting).toISOString(), // Ensure weekStarting is a string
-      dailyHours: updatedTimesheet.dailyHours as DailyHours
+      dailyHours: updatedTimesheet.dailyHours as DailyHours,
+      notes: updatedTimesheet.notes ?? undefined,
+
     };
   }
 
@@ -275,16 +321,19 @@ export class DatabaseStorage implements IStorage {
       .insert(projects)
       .values({...project})
       .returning();
-    return newProject;
+
+    return nullsToUndefined(newProject) as Project;
   }
   async listAllProjects(): Promise<(Project)[]> {
     const result = await db.select().from(projects);
 
-  // Convert decimal fields to numbers
     return result.map(project => ({
       ...project,
-      hourlyRate: parseFloat(project.hourlyRate), // Convert to number
-      totalHours: parseFloat(project.totalHours), // Convert to number
+      // If project.hourlyRate exists, convert it to a string. Otherwise, use "0".
+      hourlyRate: project.hourlyRate ? project.hourlyRate.toString() : "0",
+
+      // If project.totalHours exists, convert it to a string. Otherwise, use "0".
+      totalHours: project.totalHours ? project.totalHours.toString() : "0",
     }));
   }
 
@@ -295,7 +344,7 @@ export class DatabaseStorage implements IStorage {
       .set(project)
       .where(eq(projects.id, id))
       .returning();
-    return updatedProject;
+    return nullsToUndefined(updatedProject) as Project;
   }
 
   async deleteProject(id: number): Promise<void> {
@@ -316,20 +365,25 @@ export class DatabaseStorage implements IStorage {
       console.log('Project total hours:', totalHours);
 
       const updated = await db
-          .update(projects)
-          .set({ totalHours })
-          .where(eq(projects.id, projectId));
+        .update(projects)
+        .set({ totalHours: totalHours.toString() })
+        .where(eq(projects.id, projectId))
+        .returning(); // Use .returning() to get the rowCount
 
-      if (updated.count === 0) {
+      if (updated.length === 0) {
           console.warn(`Project with ID ${projectId} not found for update.`);
       } else {
           console.log(`Successfully updated project hours for projectId: ${projectId}`);
       }
 
-  } catch (error) {
-      console.error(`Error updating project hours for projectId ${projectId}:`, error.message);
-      throw new Error(`Failed to update project hours: ${error.message}`);
-  }
+    } catch (error) {
+      let errorMessage = "An unknown error occurred";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      console.error(`Error updating project hours for projectId ${projectId}:`, errorMessage);
+      throw new Error(`Failed to update project hours: ${errorMessage}`);
+    }
   }
 
   async getProject(id: number): Promise<Project | undefined> {
@@ -339,7 +393,7 @@ export class DatabaseStorage implements IStorage {
       .from(projects)
       .where(eq(projects.id, id))
       .limit(1)
-    return project;
+    return nullsToUndefined(project) as Project;
   }
 
   async createInvoice(invoice: InsertInvoice, timesheetIds: number[]): Promise<Invoice> {
@@ -383,7 +437,7 @@ export class DatabaseStorage implements IStorage {
       const [lastInvoice] = await db
           .select()
           .from(invoices)
-          .orderBy(invoices.id, 'desc')
+          .orderBy(sql`${invoices.id} DESC`)
           .limit(1);
 
       const baseId = (lastInvoice?.id || 0) + 1;
@@ -409,27 +463,52 @@ export class DatabaseStorage implements IStorage {
       const referenceNumber = await generateReference();
       console.log('Creating invoice with reference number:', referenceNumber);
 
-      const [newInvoice] = await db
+      const [newInvoiceFromDb] = await db
         .insert(invoices)
         .values({ ...invoice, referenceNumber })
         .returning();
+    
+      if (!newInvoiceFromDb) {
+        throw new Error("Failed to create and return new invoice from the database.");
+      }
 
-      const entries = timesheetIds.map((timesheetId) => ({ invoiceId: newInvoice.id, timesheetId }));
+      const entries = timesheetIds.map((timesheetId) => ({ invoiceId: newInvoiceFromDb.id, timesheetId }));
       await db
         .insert(invoiceTimesheets).values(entries);
 
       await db
         .update(timesheets)
-        .set({ status: "invoiced", invoiceId: newInvoice.id })
+        .set({ status: "invoiced" })
         .where(inArray(timesheets.id, timesheetIds));
 
-      return newInvoice;
+      const finalInvoice: Invoice = {
+        id: newInvoiceFromDb.id,
+        referenceNumber: newInvoiceFromDb.referenceNumber,
+        userId: newInvoiceFromDb.userId,
+        subtotal: newInvoiceFromDb.subtotal,
+        vatRate: newInvoiceFromDb.vatRate,
+        cisRate: newInvoiceFromDb.cisRate,
+        totalAmount: newInvoiceFromDb.totalAmount,
+        normalHours: newInvoiceFromDb.normalHours,
+        overtimeHours: newInvoiceFromDb.overtimeHours,
+        // Safely handle null status, providing a default
+        status: newInvoiceFromDb.status || 'pending',
+        // Convert the Date object to a string
+        createdAt: new Date(newInvoiceFromDb.createdAt!).toISOString(),
+        // Convert a null note to undefined
+        notes: newInvoiceFromDb.notes || undefined,
+      };
+
+    return finalInvoice;
 
     } catch (error) {
-      console.error("Invoice creation error:", error.message);
-      throw new Error(error.message);
+      let errorMessage = "An unknown error occurred";
+      if (error instanceof Error) {
+          errorMessage = error.message;
+      }
+      console.error("Invoice creation error:", errorMessage);
+      throw new Error(`Failed to create invoice: ${errorMessage}`);
     }
-    
   }
  
 
@@ -455,25 +534,71 @@ export class DatabaseStorage implements IStorage {
         username: users.username,
       })
       .from(invoiceTimesheets)
-      .leftJoin(timesheets, eq(invoiceTimesheets.timesheetId, timesheets.id))
-      .leftJoin(users, eq(timesheets.userId, users.id))
+      .innerJoin(timesheets, eq(invoiceTimesheets.timesheetId, timesheets.id))
+      .innerJoin(users, eq(timesheets.userId, users.id))
       .where(eq(invoiceTimesheets.invoiceId, invoiceId));
 
-    return result.map((timesheet) => ({
-      ...timesheet,
-      weekStarting: new Date(timesheet.weekStarting).toISOString(), // Ensure weekStarting is a string
-      dailyHours: timesheet.dailyHours as DailyHours, // Ensure dailyHours is parsed correctly
-      username: timesheet.username || "Unknown User",
-    }));
+    // Explicitly create a new, fully-compliant object for each record.
+    return result.map((ts) => {
+      const finalTimesheet: Timesheet & { username: string } = {
+        id: ts.id,
+        referenceNumber: ts.referenceNumber,
+        userId: ts.userId,
+        weekStarting: new Date(ts.weekStarting).toISOString(),
+        dailyHours: ts.dailyHours as DailyHours,
+        totalHours: ts.totalHours,
+        status: ts.status,
+        notes: ts.notes || undefined,
+        normalHours: ts.normalHours,
+        normalRate: ts.normalRate,
+        overtimeHours: ts.overtimeHours,
+        overtimeRate: ts.overtimeRate,
+        totalCost: ts.totalCost,
+        projectId: ts.projectId,
+        username: ts.username || 'Unknown User',
+      };
+      return finalTimesheet;
+    });
   }
 
   async updateInvoice(id: number, update: Partial<Invoice>): Promise<Invoice> {
-    const [invoice] = await db
+
+    const updateForDb = {
+      ...update,
+      createdAt: update.createdAt ? new Date(update.createdAt) : undefined,
+    };
+    
+    const [updatedInvoiceFromDb] = await db
       .update(invoices)
-      .set(update)
+      .set(updateForDb)
       .where(eq(invoices.id, id))
       .returning();
-    return invoice;
+  
+    if (!updatedInvoiceFromDb) {
+      throw new Error(`Failed to update or retrieve invoice with ID: ${id}`);
+    }
+    // Transform the raw DB object before returning it
+    const finalInvoice: Invoice = {
+      id: updatedInvoiceFromDb.id,
+      referenceNumber: updatedInvoiceFromDb.referenceNumber,
+      userId: updatedInvoiceFromDb.userId,
+      subtotal: updatedInvoiceFromDb.subtotal,
+      vatRate: updatedInvoiceFromDb.vatRate,
+      cisRate: updatedInvoiceFromDb.cisRate,
+      totalAmount: updatedInvoiceFromDb.totalAmount,
+      normalHours: updatedInvoiceFromDb.normalHours,
+      overtimeHours: updatedInvoiceFromDb.overtimeHours,
+      // Safely handle null status, providing a fallback
+      status: updatedInvoiceFromDb.status || 'pending',
+      // Convert the Date object back to a string
+      createdAt: new Date(updatedInvoiceFromDb.createdAt!).toISOString(),
+      // Convert a null value to undefined for optional fields
+      notes: updatedInvoiceFromDb.notes || undefined,
+      normalRate: updatedInvoiceFromDb.normalRate || undefined,
+      overtimeRate: updatedInvoiceFromDb.overtimeRate || undefined,
+    };
+
+    return finalInvoice;
   }
 
   async listAllInvoices(): Promise<(Invoice & { username: string })[]> {
@@ -498,24 +623,49 @@ export class DatabaseStorage implements IStorage {
       .from(invoices)
       .leftJoin(users, eq(invoices.userId, users.id));
 
-    return result.map((invoice) => ({
-      ...invoice,
-      username: invoice.username || "Unknown User",
-    }));
+    // Transform every record to perfectly match the updated Invoice interface
+    return result.map((invoiceFromDb) => {
+      const finalInvoice: Invoice & { username: string } = {
+        id: invoiceFromDb.id,
+        referenceNumber: invoiceFromDb.referenceNumber,
+        userId: invoiceFromDb.userId,
+        subtotal: invoiceFromDb.subtotal,
+        vatRate: invoiceFromDb.vatRate,
+        cisRate: invoiceFromDb.cisRate,
+        totalAmount: invoiceFromDb.totalAmount,
+        normalHours: invoiceFromDb.normalHours,
+        overtimeHours: invoiceFromDb.overtimeHours,
+        status: invoiceFromDb.status || 'pending',
+        createdAt: invoiceFromDb.createdAt ? new Date(invoiceFromDb.createdAt).toISOString() : new Date(0).toISOString(),
+        notes: invoiceFromDb.notes || undefined,
+        normalRate: invoiceFromDb.normalRate || undefined,
+        overtimeRate: invoiceFromDb.overtimeRate || undefined,
+        username: invoiceFromDb.username || 'Unknown User',
+      };
+      return finalInvoice;
+    });
   }
+
   async getTimesheet(id: number): Promise<Timesheet | undefined> {
-    const [timesheet] = await db
+    const [timesheetFromDb] = await db
       .select()
       .from(timesheets)
       .where(eq(timesheets.id, id));
 
-    if (!timesheet) return undefined;
+    if (!timesheetFromDb) return undefined;
 
-    return {
-      ...timesheet,
-      weekStarting: new Date(timesheet.weekStarting).toISOString(), // Ensure weekStarting is a string
-      dailyHours: timesheet.dailyHours as DailyHours, // Ensure dailyHours is parsed correctly
+    // Explicitly build the final object to match the Timesheet interface
+    const finalTimesheet: Timesheet = {
+      ...timesheetFromDb,
+      weekStarting: new Date(timesheetFromDb.weekStarting).toISOString(),
+      dailyHours: timesheetFromDb.dailyHours as DailyHours,
+      // Safely convert a null 'notes' to 'undefined'
+      notes: timesheetFromDb.notes || undefined,
+      // Safely handle the nullable status field
+      status: timesheetFromDb.status || 'draft',
     };
+
+    return finalTimesheet;
   }
 
   async getUserTimesheets(userId: number): Promise<Timesheet[]> {
@@ -524,12 +674,19 @@ export class DatabaseStorage implements IStorage {
       .from(timesheets)
       .where(eq(timesheets.userId, userId));
     
-      // Format the returned data
-    return result.map(t => ({
+    // Explicitly create a new object that handles all transformations
+    return result.map(t => {
+      const finalTimesheet: Timesheet = {
         ...t,
         weekStarting: new Date(t.weekStarting).toISOString(),
-        dailyHours: t.dailyHours as DailyHours
-    }));
+        dailyHours: t.dailyHours as DailyHours,
+        // Convert a null 'notes' to 'undefined'
+        notes: t.notes || undefined,
+        // Provide a fallback for a null 'status'
+        status: t.status || 'draft',
+      };
+      return finalTimesheet;
+    });
   }
 
   async deleteTimesheet(id: number): Promise<void> {
@@ -558,18 +715,18 @@ export class DatabaseStorage implements IStorage {
       .from(timesheets)
       .leftJoin(users, eq(timesheets.userId, users.id));
   
+    // The map must handle ALL transformations to match the Timesheet type
     return sheets.map((sheet) => ({
       ...sheet,
-      // Convert Date object to string to match the 'Timesheet' interface
       weekStarting: new Date(sheet.weekStarting).toISOString(),
       dailyHours: sheet.dailyHours as DailyHours,
+      // Add these next two lines to handle the nullable fields
+      notes: sheet.notes || undefined, 
+      status: sheet.status || 'draft',
       username: sheet.username || "Unknown User",
-      projectId: sheet.projectId,
     }));
   }
   
-
-
   async deleteInvoice(id: number): Promise<void> {
     // Find timesheets linked to this invoice before deleting
     const relatedTimesheets = await db
@@ -588,7 +745,16 @@ export class DatabaseStorage implements IStorage {
     // Delete invoice and related records (cascade will handle invoice_timesheets)
     await db.delete(invoices).where(eq(invoices.id, id));
   }
+}
 
+function nullsToUndefined<T extends object>(obj: T | undefined | null): T | undefined {
+    if (!obj) return undefined;
+    for (const key in obj) {
+        if (obj[key] === null) {
+            (obj as any)[key] = undefined;
+        }
+    }
+    return obj;
 }
 
 export const storage = new DatabaseStorage();

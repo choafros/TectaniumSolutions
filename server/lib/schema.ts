@@ -37,7 +37,7 @@ export const documents = pgTable("documents", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   path: text("path").notNull(),
-  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   approved: boolean("approved").default(false),
 });
 
@@ -48,7 +48,7 @@ export const timesheets = pgTable("timesheets", {
   weekStarting: timestamp("week_starting").notNull(),
   dailyHours: jsonb("daily_hours").notNull(),
   totalHours: decimal("total_hours").notNull(),
-  status: text("status", { enum: ["draft", "pending", "approved", "rejected", "invoiced"] }).default("draft"), // Added invoiced status
+  status: text("status", { enum: ["draft", "pending", "approved", "rejected", "invoiced"] }).default("draft").notNull(),
   notes: text("notes"),
   normalHours: decimal("normal_hours", { precision: 10, scale: 2 }).notNull(),
   normalRate: decimal("normal_rate", { precision: 10, scale: 2 }).notNull(),

@@ -181,6 +181,8 @@ export interface Invoice {
   status: "pending" | "paid" | "overdue";
   createdAt: string;
   notes?: string;
+  normalRate?: string;
+  overtimeRate?: string;
 }
 
 // Projects
