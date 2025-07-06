@@ -26,6 +26,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { generateReferenceNumber } from "@shared/utils";
+import { DailyHours } from "./lib/schema";
 
 const MemoryStore = createMemoryStore(session);
 
@@ -201,13 +202,7 @@ export class DatabaseStorage implements IStorage {
     // Function to generate reference number
     const generateReference = async (attempt = 0): Promise<string> => {
       // Get the last timesheet to determine next ID
-      const [lastTimesheet] = await db
-        .select()
-        .from(timesheets)
-        .orderBy(timesheets.id, 'desc')
-        .limit(1);
-      
-      console.log('lastTimesheet: ', lastTimesheet);
+      const [lastTimesheet] = await db.select().from(timesheets).orderBy(sql`${timesheets.id} DESC`).limit(1);
 
       const baseId = (lastTimesheet?.id || 0) + 1;
       const attemptId = baseId + attempt;
@@ -239,8 +234,14 @@ export class DatabaseStorage implements IStorage {
           referenceNumber,
         })
         .returning();
+      
+        // Format the returned data to match the Timesheet interface
 
-      return newTimesheet;
+      return {
+        ...newTimesheet,
+        weekStarting: new Date(newTimesheet.weekStarting).toISOString(), // Ensure weekStarting is a string
+        dailyHours: newTimesheet.dailyHours as DailyHours
+      };
     } catch (error) {
       console.error('Error creating timesheet:', error);
       throw new Error('Failed to create timesheet with unique reference number');
@@ -257,7 +258,14 @@ export class DatabaseStorage implements IStorage {
       .set(timesheet)
       .where(eq(timesheets.id, id))
       .returning();
-    return updatedTimesheet;
+
+    // Format the returned data
+
+    return {
+      ...updatedTimesheet,
+      weekStarting: new Date(updatedTimesheet.weekStarting).toISOString(), // Ensure weekStarting is a string
+      dailyHours: updatedTimesheet.dailyHours as DailyHours
+    };
   }
 
   // Project functions
@@ -442,6 +450,8 @@ export class DatabaseStorage implements IStorage {
         normalRate: timesheets.normalRate,
         overtimeHours: timesheets.overtimeHours,
         overtimeRate: timesheets.overtimeRate,
+        totalCost: timesheets.totalCost,
+        projectId: timesheets.projectId,
         username: users.username,
       })
       .from(invoiceTimesheets)
@@ -451,6 +461,8 @@ export class DatabaseStorage implements IStorage {
 
     return result.map((timesheet) => ({
       ...timesheet,
+      weekStarting: new Date(timesheet.weekStarting).toISOString(), // Ensure weekStarting is a string
+      dailyHours: timesheet.dailyHours as DailyHours, // Ensure dailyHours is parsed correctly
       username: timesheet.username || "Unknown User",
     }));
   }
@@ -496,14 +508,28 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(timesheets)
       .where(eq(timesheets.id, id));
-    return timesheet;
+
+    if (!timesheet) return undefined;
+
+    return {
+      ...timesheet,
+      weekStarting: new Date(timesheet.weekStarting).toISOString(), // Ensure weekStarting is a string
+      dailyHours: timesheet.dailyHours as DailyHours, // Ensure dailyHours is parsed correctly
+    };
   }
 
   async getUserTimesheets(userId: number): Promise<Timesheet[]> {
-    return await db
+    const result = await db
       .select()
       .from(timesheets)
       .where(eq(timesheets.userId, userId));
+    
+      // Format the returned data
+    return result.map(t => ({
+        ...t,
+        weekStarting: new Date(t.weekStarting).toISOString(),
+        dailyHours: t.dailyHours as DailyHours
+    }));
   }
 
   async deleteTimesheet(id: number): Promise<void> {
@@ -535,7 +561,8 @@ export class DatabaseStorage implements IStorage {
     return sheets.map((sheet) => ({
       ...sheet,
       // Convert Date object to string to match the 'Timesheet' interface
-      weekStarting: new Date(sheet.weekStarting).toISOString(), 
+      weekStarting: new Date(sheet.weekStarting).toISOString(),
+      dailyHours: sheet.dailyHours as DailyHours,
       username: sheet.username || "Unknown User",
       projectId: sheet.projectId,
     }));

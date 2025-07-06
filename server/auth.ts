@@ -72,16 +72,22 @@ export function setupAuth(app: Express) {
       try {
         const user = await storage.getUserByUsername(username);
 
-        if (!user || !(await comparePasswords(password, user.password))) {
-          return done(null, false);
+        if (!user || !user.password) {
+          return done(null, false, { message: "Invalid username or password." });
         } 
+
+        const passwordsMatch = await comparePasswords(password, user.password);
         
+        if (!passwordsMatch) {
+          return done(null, false, { message: "Invalid username or password." });
+        }
+
         if (!user.active) {
           return done(null, false, { message:"Your account is deactivated. Please contact your administrator."});
         }
-        
+
         return done(null, user);
-      
+        
       } catch (error) {
         return done(error);
       }
@@ -131,7 +137,7 @@ export function setupAuth(app: Express) {
   
     // passport.authenticate callback to include types for err, user, and info
     passport.authenticate("local", (err: any, user: Express.User | false, info: any) => {
-      
+
       if (err) {
         return res.status(401).json({ message: err.message });
       }
